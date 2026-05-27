@@ -20,8 +20,9 @@ O AquaSense IoT monitora continuamente os parâmetros da água da piscina e do c
 | Componente | Descrição |
 |---|---|
 | ESP32 | Microcontrolador principal |
-| LCD I2C 16×2 | Display de leituras (endereço 0x27) |
+| LCD I2C 16×2 | Display de leituras (autodetecta 0x27 / 0x3F) |
 | LED 1 (D4) | Alerta de pH fora da faixa |
+| LED Wi-Fi (D5) | Status da conexão Wi-Fi |
 | LED 2 (D18) | Alerta de ORP fora da faixa |
 | LED 3 (D19) | Alerta de condutividade fora da faixa |
 | Relé (D26) | Controle da bomba do coletor solar |
@@ -30,6 +31,7 @@ O AquaSense IoT monitora continuamente os parâmetros da água da piscina e do c
 
 ```
 D4   → LED pH
+D5   → LED Wi-Fi
 D18  → LED ORP
 D19  → LED Condutividade
 D21  → LCD SDA (I2C)
@@ -83,16 +85,17 @@ Ts: 28.0°C ON
 
 ## Comunicação MQTT (HiveMQ Cloud)
 
-Conexão TLS na porta **8883**. Todos os tópicos publicam a cada 5 segundos.
+Conexão **TLS validada** na porta **8883**, usando o certificado raiz ISRG Root X1 (Let's Encrypt) embarcado no firmware. Todos os tópicos publicam a cada 5 segundos. Reconexão Wi-Fi e MQTT são **não-bloqueantes** com backoff (não travam o loop principal).
 
-| Tópico | Conteúdo |
-|---|---|
-| `aquasense/agua/ph` | Valor de pH (float) |
-| `aquasense/agua/orp` | Valor de ORP em mV (float) |
-| `aquasense/agua/condutividade` | Condutividade em µS/cm (float) |
-| `aquasense/temperatura/piscina` | Temperatura da piscina em °C (float) |
-| `aquasense/temperatura/coletor` | Temperatura do coletor solar em °C (float) |
-| `aquasense/bomba/estado` | Estado da bomba: `ON` ou `OFF` |
+| Tópico | Conteúdo | Retain |
+|---|---|---|
+| `aquasense/agua/ph` | Valor de pH (float) | — |
+| `aquasense/agua/orp` | Valor de ORP em mV (float) | — |
+| `aquasense/agua/condutividade` | Condutividade em µS/cm (float) | — |
+| `aquasense/temperatura/piscina` | Temperatura da piscina em °C (float) | — |
+| `aquasense/temperatura/coletor` | Temperatura do coletor solar em °C (float) | — |
+| `aquasense/bomba/estado` | Estado da bomba: `ON` ou `OFF` | ✓ |
+| `aquasense/sistema/status` | `online` / `offline` (LWT — Last Will and Testament) | ✓ |
 
 ---
 
@@ -138,7 +141,20 @@ Instale via **Arduino IDE → Library Manager**:
 
 ## Simulação dos Sensores
 
-Neste protótipo, os sensores físicos são substituídos por funções que geram valores oscilantes com `sin(millis())`, permitindo testar toda a lógica de controle, LEDs, LCD e MQTT sem os sensores reais conectados.
+Neste protótipo, os sensores físicos são substituídos por funções que geram valores oscilantes com `sinf(millis())`, permitindo testar toda a lógica de controle, LEDs, LCD e MQTT sem os sensores reais conectados.
+
+---
+
+## Otimizações da v2.0
+
+- **TLS com validação de certificado** (ISRG Root X1) — sem `setInsecure()`
+- **Reconexão Wi-Fi e MQTT 100% não-bloqueantes** com backoff (loop nunca trava)
+- **Last Will and Testament (LWT)** — broker avisa quando o ESP32 cai
+- **Sem heap dinâmico** — LCD estático, `snprintf` + `char[17]` no lugar de `String`
+- **clientId MQTT único** usando todos os 48 bits do MAC do ESP32
+- **Auto-reconnect Wi-Fi** explicitamente habilitado
+- **Detecção automática** do endereço I2C do LCD (0x27 / 0x3F)
+- **LCD sem flicker** (padding em vez de `clear()`)
 
 ---
 

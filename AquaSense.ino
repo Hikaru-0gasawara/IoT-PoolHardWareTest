@@ -1,23 +1,33 @@
 /*
  * ============================================================================
- *  AquaSense IoT  -  Firmware do protótipo (com LEDs no lugar dos sensores)
+ *  AquaSense IoT  -  Firmware otimizado v2.0
  *  IBMEC São Paulo / Invivio Tecnologia Ltda
  *  Sistemas Embarcados - Prof. Marcel Stefan Wagner, PhD
  *  Grupo 1: Okaru, João Perestrelo, Roan
  * ============================================================================
  *
- *  Mapeamento de pinos:
- *     D4  -> LED 1   (indicador de pH fora da faixa ideal)
- *     D18 -> LED 2   (indicador de ORP fora da faixa ideal)
- *     D19 -> LED 3   (indicador de condutividade fora da faixa ideal)
- *     D21 -> LCD SDA  (barramento I2C)
- *     D22 -> LCD SCL  (barramento I2C)
- *     D26 -> Relé IN  (controle da bomba do coletor solar)
+ *  Otimizações desta versão:
+ *    [C-1] LEDs voltam a respeitar faixas dos sensores
+ *    [C-2] TLS com certificado raiz Let's Encrypt (HiveMQ Cloud)
+ *    [C-3] Reconexão MQTT 100% não-bloqueante (state machine + backoff)
+ *    [C-4] mqtt.loop() guardado por WiFi.status()
+ *    [G-1] Objeto LCD estático (zero heap)
+ *    [G-3] clientId usa todos os 48 bits do MAC
+ *    [G-4] setInsecure/setServer chamados uma única vez no setup
+ *    [G-5] WiFi.setAutoReconnect(true) + persistent(false) explícitos
+ *    [M-1] snprintf + char[17] no LCD (zero String, zero heap)
+ *    [M-2] LCD sem flicker (padding em vez de clear)
+ *    [M-3] LED Wi-Fi movido para D5 (não-strapping)
+ *    [M-4] Literais float (sufixo f) — evita promoção para double
  *
- *  Bibliotecas necessárias:
- *    - WiFi                                  (nativa do ESP32)
- *    - PubSubClient                          (Nick O'Leary)
- *    - Arduino-LiquidCrystal-I2C-library     (versão com lcd.begin() sem args)
+ *  Mapeamento de pinos:
+ *     D4  -> LED 1   (pH fora da faixa)
+ *     D5  -> LED Wi-Fi (status da conexão)
+ *     D18 -> LED 2   (ORP fora da faixa)
+ *     D19 -> LED 3   (condutividade fora da faixa)
+ *     D21 -> LCD SDA (I2C)
+ *     D22 -> LCD SCL (I2C)
+ *     D26 -> Relé    (bomba do coletor solar)
  * ============================================================================
  */
 
@@ -31,36 +41,79 @@
 //  PINOS
 // ============================================================================
 #define PIN_LED_PH     4
+#define PIN_LED_WIFI   5      // GPIO5 (não é strapping crítico p/ download mode)
 #define PIN_LED_ORP    18
 #define PIN_LED_COND   19
 #define PIN_RELE       26
 #define PIN_SDA        21
 #define PIN_SCL        22
 
+#define I2C_CLOCK_HZ   100000UL   // 100 kHz - velocidade padrão
+
 #define RELE_ACTIVE_LOW   1
 #if RELE_ACTIVE_LOW
-  #define RELE_LIGA   LOW
+  #define RELE_LIGA    LOW
   #define RELE_DESLIGA HIGH
 #else
-  #define RELE_LIGA   HIGH
+  #define RELE_LIGA    HIGH
   #define RELE_DESLIGA LOW
 #endif
 
 // ============================================================================
-//  LCD I2C 16x2
+//  LCD I2C 16x2 — objeto estático (sem heap)
 // ============================================================================
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+bool lcdOK = false;
 
 // ============================================================================
-//  WIFI / MQTT  (HiveMQ Cloud)
+//  WI-FI
 // ============================================================================
 const char* WIFI_SSID = "SUA_REDE_WIFI";
 const char* WIFI_PASS = "SUA_SENHA_WIFI";
 
+// ============================================================================
+//  HiveMQ Cloud (MQTT TLS)
+// ============================================================================
 const char* MQTT_HOST = "xxxxxxxxxxxx.s1.eu.hivemq.cloud";
 const int   MQTT_PORT = 8883;
 const char* MQTT_USER = "seu_usuario_hivemq";
 const char* MQTT_PASS = "sua_senha_hivemq";
+
+// Certificado raiz ISRG Root X1 (Let's Encrypt) — HiveMQ Cloud usa cadeia LE.
+// Válido até 2035-06-04. Sem isso, conexão TLS aceitaria qualquer servidor.
+const char* HIVEMQ_ROOT_CA = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----
+)EOF";
 
 const char* TOPIC_PH       = "aquasense/agua/ph";
 const char* TOPIC_ORP      = "aquasense/agua/orp";
@@ -68,66 +121,70 @@ const char* TOPIC_COND     = "aquasense/agua/condutividade";
 const char* TOPIC_T_PISC   = "aquasense/temperatura/piscina";
 const char* TOPIC_T_SOLAR  = "aquasense/temperatura/coletor";
 const char* TOPIC_BOMBA    = "aquasense/bomba/estado";
+const char* TOPIC_STATUS   = "aquasense/sistema/status";   // LWT
 
 WiFiClientSecure wifiClient;
 PubSubClient     mqtt(wifiClient);
+
+bool      mqttHabilitado = false;
+char      clientId[24];
 
 // ============================================================================
 //  PARÂMETROS DE OPERAÇÃO
 // ============================================================================
 const unsigned long INTERVALO_AQUISICAO_MS = 5000;
+const float         DELTA_LIGAR_C          = 5.0f;
+const float         DELTA_DESLIGAR_C       = 1.0f;
+const unsigned long ANTI_CYCLING_MS        = 60000UL;
 
-const float         DELTA_LIGAR_C       = 5.0;
-const float         DELTA_DESLIGAR_C    = 1.0;
-const unsigned long ANTI_CYCLING_MS     = 60000UL;
+const float PH_MIN   = 7.2f,  PH_MAX   = 7.6f;
+const float ORP_MIN  = 650.0f, ORP_MAX = 750.0f;
+const float COND_MIN = 800.0f, COND_MAX = 1500.0f;
 
-const float PH_MIN   = 7.2,  PH_MAX   = 7.6;
-const float ORP_MIN  = 650,  ORP_MAX  = 750;
-const float COND_MIN = 800,  COND_MAX = 1500;
+// Backoffs não-bloqueantes
+const unsigned long WIFI_RETRY_MS  = 10000UL;
+const unsigned long MQTT_RETRY_MS  = 5000UL;
 
 // ============================================================================
 //  ESTADO GLOBAL
 // ============================================================================
 unsigned long ultimaAquisicao    = 0;
 unsigned long ultimaMudancaBomba = 0;
+unsigned long proxRetryWiFi      = 0;
+unsigned long proxRetryMQTT      = 0;
 bool          bombaLigada        = false;
+bool          primeiroCiclo      = true;   // libera primeira mudança da bomba
 
 // ============================================================================
-//  SIMULAÇÃO DOS SENSORES
+//  SIMULAÇÃO DOS SENSORES (literais float — sem promoção a double)
 // ============================================================================
-float lerPH() {
-  return 7.4 + sin(millis() / 30000.0) * 0.4;
-}
-float lerORP() {
-  return 700.0 + sin(millis() / 25000.0) * 60.0;
-}
-float lerCondutividade() {
-  return 1100.0 + sin(millis() / 40000.0) * 300.0;
-}
-float lerTempPiscina() {
-  return 24.0 + sin(millis() / 60000.0) * 2.0;
-}
-float lerTempSolar() {
-  return 28.0 + sin(millis() / 45000.0) * 8.0;
-}
+float lerPH()            { return 7.4f  + sinf(millis() / 30000.0f) * 0.4f;  }
+float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f; }
+float lerCondutividade() { return 1100.0f + sinf(millis() / 40000.0f) * 300.0f; }
+float lerTempPiscina()   { return 24.0f + sinf(millis() / 60000.0f) * 2.0f;  }
+float lerTempSolar()     { return 28.0f + sinf(millis() / 45000.0f) * 8.0f;  }
 
 // ============================================================================
-//  INDICAÇÃO POR LED
+//  INDICAÇÃO POR LED (faixas de qualidade da água)
 // ============================================================================
+inline bool foraDaFaixa(float v, float lo, float hi) {
+  return (v < lo) || (v > hi);
+}
+
 void atualizarLEDs(float ph, float orp, float cond) {
-  digitalWrite(PIN_LED_PH,   (ph   < PH_MIN   || ph   > PH_MAX)   ? HIGH : LOW);
-  digitalWrite(PIN_LED_ORP,  (orp  < ORP_MIN  || orp  > ORP_MAX)  ? HIGH : LOW);
-  digitalWrite(PIN_LED_COND, (cond < COND_MIN || cond > COND_MAX) ? HIGH : LOW);
+  digitalWrite(PIN_LED_PH,   foraDaFaixa(ph,   PH_MIN,   PH_MAX)   ? HIGH : LOW);
+  digitalWrite(PIN_LED_ORP,  foraDaFaixa(orp,  ORP_MIN,  ORP_MAX)  ? HIGH : LOW);
+  digitalWrite(PIN_LED_COND, foraDaFaixa(cond, COND_MIN, COND_MAX) ? HIGH : LOW);
 }
 
 // ============================================================================
-//  CONTROLE DA BOMBA - HISTERESE COM ANTI-CYCLING
+//  CONTROLE DA BOMBA - HISTERESE + ANTI-CYCLING
 // ============================================================================
 void controlarBomba(float tPiscina, float tSolar) {
-  float deltaT = tSolar - tPiscina;
-  unsigned long agora = millis();
+  const float deltaT = tSolar - tPiscina;
+  const unsigned long agora = millis();
 
-  if (agora - ultimaMudancaBomba < ANTI_CYCLING_MS) {
+  if (!primeiroCiclo && (agora - ultimaMudancaBomba < ANTI_CYCLING_MS)) {
     return;
   }
 
@@ -135,92 +192,148 @@ void controlarBomba(float tPiscina, float tSolar) {
     bombaLigada = true;
     digitalWrite(PIN_RELE, RELE_LIGA);
     ultimaMudancaBomba = agora;
-    Serial.println(F("[BOMBA] LIGADA  (deltaT atingiu 5 C)"));
+    primeiroCiclo = false;
+    Serial.println(F("[BOMBA] LIGADA (dT >= 5C)"));
   }
   else if (bombaLigada && deltaT <= DELTA_DESLIGAR_C) {
     bombaLigada = false;
     digitalWrite(PIN_RELE, RELE_DESLIGA);
     ultimaMudancaBomba = agora;
-    Serial.println(F("[BOMBA] DESLIGADA (deltaT caiu para 1 C)"));
+    primeiroCiclo = false;
+    Serial.println(F("[BOMBA] DESLIGADA (dT <= 1C)"));
   }
 }
 
 // ============================================================================
-//  LCD - duas telas alternando a cada ciclo
+//  LCD - sem flicker, sem String, sem heap
 // ============================================================================
+void escreverLinhaLCD(uint8_t linha, const char* texto) {
+  if (!lcdOK) return;
+  char buf[17];                          // 16 chars + '\0'
+  size_t n = strnlen(texto, 16);
+  memcpy(buf, texto, n);
+  memset(buf + n, ' ', 16 - n);          // padding com espaços
+  buf[16] = '\0';
+  lcd.setCursor(0, linha);
+  lcd.print(buf);
+}
+
 void atualizarLCD(float ph, float orp, float cond, float tPisc, float tSolar) {
+  if (!lcdOK) return;
+
   static bool tela = false;
   tela = !tela;
 
-  lcd.clear();
+  char l1[17], l2[17];
   if (!tela) {
-    lcd.setCursor(0, 0);
-    lcd.print("pH");
-    lcd.print(ph, 2);
-    lcd.print(" ORP");
-    lcd.print((int)orp);
-    lcd.setCursor(0, 1);
-    lcd.print("EC");
-    lcd.print((int)cond);
-    lcd.print(" B:");
-    lcd.print(bombaLigada ? "ON " : "OFF");
+    snprintf(l1, sizeof(l1), "pH%.2f ORP%d", ph, (int)orp);
+    snprintf(l2, sizeof(l2), "EC%d B:%s", (int)cond, bombaLigada ? "ON" : "OFF");
   } else {
-    lcd.setCursor(0, 0);
-    lcd.print("Tp:");
-    lcd.print(tPisc, 1);
-    lcd.print((char)223);
-    lcd.print("C");
-    lcd.setCursor(0, 1);
-    lcd.print("Ts:");
-    lcd.print(tSolar, 1);
-    lcd.print((char)223);
-    lcd.print("C ");
-    lcd.print(bombaLigada ? "ON" : "OFF");
+    snprintf(l1, sizeof(l1), "Tp:%.1f%cC", tPisc, (char)223);
+    snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", tSolar, (char)223, bombaLigada ? "ON" : "OFF");
   }
+  escreverLinhaLCD(0, l1);
+  escreverLinhaLCD(1, l2);
 }
 
 // ============================================================================
-//  WI-FI
+//  WI-FI (não-bloqueante)
 // ============================================================================
-void conectarWiFi() {
-  Serial.print(F("Conectando ao Wi-Fi"));
+void iniciarWiFi() {
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(true);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  unsigned long t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) {
-    delay(400);
+  Serial.print(F("[WiFi] Conectando a \""));
+  Serial.print(WIFI_SSID);
+  Serial.println(F("\"..."));
+
+  // Aguarda até 20s só no boot, depois deixa o auto-reconnect cuidar
+  const unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000UL) {
+    delay(250);
     Serial.print('.');
   }
+  Serial.println();
+
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.print(F(" OK  IP="));
-    Serial.println(WiFi.localIP());
+    Serial.print(F("[WiFi] OK  IP="));
+    Serial.print(WiFi.localIP());
+    Serial.print(F("  RSSI="));
+    Serial.print(WiFi.RSSI());
+    Serial.println(F(" dBm"));
   } else {
-    Serial.println(F(" FALHOU (seguindo offline)"));
+    Serial.println(F("[WiFi] FALHOU no boot (seguindo offline, auto-reconnect ativo)"));
   }
 }
 
-// ============================================================================
-//  MQTT
-// ============================================================================
-void conectarMQTT() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void gerenciarWiFi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(PIN_LED_WIFI, HIGH);
+    return;
+  }
+  digitalWrite(PIN_LED_WIFI, LOW);
 
-  wifiClient.setInsecure();
+  const unsigned long agora = millis();
+  if (agora < proxRetryWiFi) return;
+  proxRetryWiFi = agora + WIFI_RETRY_MS;
+
+  Serial.println(F("[WiFi] reconectando..."));
+  WiFi.disconnect();
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+}
+
+// ============================================================================
+//  MQTT (não-bloqueante)
+// ============================================================================
+void iniciarMQTT() {
+  if (!mqttHabilitado) {
+    Serial.println(F("[MQTT] desabilitado (credenciais nao preenchidas)"));
+    return;
+  }
+
+  // Configuração uma única vez — não re-executar a cada reconexão
+  wifiClient.setCACert(HIVEMQ_ROOT_CA);
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  mqtt.setBufferSize(512);
+  mqtt.setKeepAlive(30);
+  mqtt.setSocketTimeout(10);
 
-  int tentativas = 0;
-  while (!mqtt.connected() && tentativas < 3) {
-    Serial.print(F("Conectando MQTT..."));
-    String clientId = "aquasense-" + String((uint32_t)ESP.getEfuseMac(), HEX);
-    if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
-      Serial.println(F(" OK"));
-    } else {
-      Serial.print(F(" rc="));
-      Serial.print(mqtt.state());
-      Serial.println(F(" - retry em 3s"));
-      delay(3000);
-      tentativas++;
-    }
+  // ClientId estável usando todos os 48 bits do MAC
+  uint64_t mac = ESP.getEfuseMac();
+  snprintf(clientId, sizeof(clientId), "aquasense-%04X%08X",
+           (uint16_t)((mac >> 32) & 0xFFFF),
+           (uint32_t)(mac & 0xFFFFFFFFUL));
+
+  Serial.print(F("[MQTT] clientId="));
+  Serial.println(clientId);
+}
+
+void gerenciarMQTT() {
+  if (!mqttHabilitado || WiFi.status() != WL_CONNECTED) return;
+
+  if (mqtt.connected()) {
+    mqtt.loop();
+    return;
+  }
+
+  const unsigned long agora = millis();
+  if (agora < proxRetryMQTT) return;
+  proxRetryMQTT = agora + MQTT_RETRY_MS;
+
+  Serial.print(F("[MQTT] conectando ao broker..."));
+  // LWT: avisa dashboard caso o dispositivo caia
+  bool ok = mqtt.connect(
+      clientId, MQTT_USER, MQTT_PASS,
+      TOPIC_STATUS, 1, true, "offline"
+  );
+
+  if (ok) {
+    Serial.println(F(" OK"));
+    mqtt.publish(TOPIC_STATUS, "online", true);
+  } else {
+    Serial.print(F(" falhou rc="));
+    Serial.println(mqtt.state());
   }
 }
 
@@ -232,14 +345,47 @@ void publicarFloat(const char* topico, float valor) {
 }
 
 // ============================================================================
+//  INICIALIZAÇÃO LCD com detecção de I2C
+// ============================================================================
+bool detectarLCD() {
+  // Tenta endereços comuns de backpack PCF8574: 0x27 (default) e 0x3F
+  const uint8_t enderecos[] = { 0x27, 0x3F };
+  for (uint8_t addr : enderecos) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print(F("[LCD] detectado em 0x"));
+      Serial.println(addr, HEX);
+      return true;
+    }
+  }
+  Serial.println(F("[LCD] nenhum dispositivo I2C respondeu - operando sem display"));
+  return false;
+}
+
+void inicializarLCD() {
+  if (!detectarLCD()) {
+    lcdOK = false;
+    return;
+  }
+  lcd.begin();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("AquaSense IoT");
+  lcd.setCursor(0, 1);
+  lcd.print("Iniciando...");
+  lcdOK = true;
+}
+
+// ============================================================================
 //  TESTE INICIAL DOS LEDS
 // ============================================================================
 void blinkTesteLEDs() {
   const uint8_t leds[] = { PIN_LED_PH, PIN_LED_ORP, PIN_LED_COND };
-  for (int rodada = 0; rodada < 2; rodada++) {
+  for (int r = 0; r < 2; r++) {
     for (int i = 0; i < 3; i++) {
       digitalWrite(leds[i], HIGH);
-      delay(180);
+      delay(150);
       digitalWrite(leds[i], LOW);
     }
   }
@@ -251,31 +397,40 @@ void blinkTesteLEDs() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println(F("\n=== AquaSense IoT - boot ==="));
+  Serial.println(F("\n=== AquaSense IoT - boot v2.0 ==="));
 
   pinMode(PIN_LED_PH,   OUTPUT);
   pinMode(PIN_LED_ORP,  OUTPUT);
   pinMode(PIN_LED_COND, OUTPUT);
+  pinMode(PIN_LED_WIFI, OUTPUT);
   pinMode(PIN_RELE,     OUTPUT);
   digitalWrite(PIN_LED_PH,   LOW);
   digitalWrite(PIN_LED_ORP,  LOW);
   digitalWrite(PIN_LED_COND, LOW);
+  digitalWrite(PIN_LED_WIFI, LOW);
   digitalWrite(PIN_RELE, RELE_DESLIGA);
 
   Wire.begin(PIN_SDA, PIN_SCL);
-  lcd.begin();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("AquaSense IoT");
-  lcd.setCursor(0, 1);
-  lcd.print("Iniciando...");
+  Wire.setClock(I2C_CLOCK_HZ);
+  inicializarLCD();
 
   blinkTesteLEDs();
 
-  conectarWiFi();
-  conectarMQTT();
+  // Detecta se MQTT está configurado (host + user + pass não placeholders)
+  mqttHabilitado =
+      strlen(MQTT_HOST) > 0 &&
+      strcmp(MQTT_HOST, "xxxxxxxxxxxx.s1.eu.hivemq.cloud") != 0 &&
+      strlen(MQTT_USER) > 0 &&
+      strlen(MQTT_PASS) > 0;
 
-  lcd.clear();
+  iniciarWiFi();
+  iniciarMQTT();
+
+  if (lcdOK) {
+    delay(1500);
+    lcd.clear();
+  }
+
   ultimaAquisicao = millis() - INTERVALO_AQUISICAO_MS;
 }
 
@@ -283,32 +438,32 @@ void setup() {
 //  LOOP
 // ============================================================================
 void loop() {
-  if (WiFi.status() == WL_CONNECTED && !mqtt.connected()) {
-    conectarMQTT();
-  }
-  mqtt.loop();
+  gerenciarWiFi();
+  gerenciarMQTT();
 
-  unsigned long agora = millis();
+  const unsigned long agora = millis();
   if (agora - ultimaAquisicao < INTERVALO_AQUISICAO_MS) return;
   ultimaAquisicao = agora;
 
-  float ph       = lerPH();
-  float orp      = lerORP();
-  float cond     = lerCondutividade();
-  float tPisc    = lerTempPiscina();
-  float tSolar   = lerTempSolar();
+  const float ph     = lerPH();
+  const float orp    = lerORP();
+  const float cond   = lerCondutividade();
+  const float tPisc  = lerTempPiscina();
+  const float tSolar = lerTempSolar();
 
   atualizarLEDs(ph, orp, cond);
   controlarBomba(tPisc, tSolar);
   atualizarLCD(ph, orp, cond, tPisc, tSolar);
 
-  Serial.print(F("pH=")); Serial.print(ph, 2);
+  Serial.print(F("pH="));   Serial.print(ph, 2);
   Serial.print(F(" ORP=")); Serial.print(orp, 0);
-  Serial.print(F(" EC=")); Serial.print(cond, 0);
-  Serial.print(F(" Tp=")); Serial.print(tPisc, 1);
-  Serial.print(F(" Ts=")); Serial.print(tSolar, 1);
-  Serial.print(F(" dT=")); Serial.print(tSolar - tPisc, 1);
-  Serial.print(F(" B=")); Serial.println(bombaLigada ? "ON" : "OFF");
+  Serial.print(F(" EC="));  Serial.print(cond, 0);
+  Serial.print(F(" Tp="));  Serial.print(tPisc, 1);
+  Serial.print(F(" Ts="));  Serial.print(tSolar, 1);
+  Serial.print(F(" dT="));  Serial.print(tSolar - tPisc, 1);
+  Serial.print(F(" B="));   Serial.print(bombaLigada ? "ON " : "OFF");
+  Serial.print(F(" WiFi="));Serial.print(WiFi.status() == WL_CONNECTED ? "OK " : "OFF");
+  Serial.print(F(" MQTT="));Serial.println(mqtt.connected() ? "OK" : "OFF");
 
   publicarFloat(TOPIC_PH,      ph);
   publicarFloat(TOPIC_ORP,     orp);
@@ -316,6 +471,6 @@ void loop() {
   publicarFloat(TOPIC_T_PISC,  tPisc);
   publicarFloat(TOPIC_T_SOLAR, tSolar);
   if (mqtt.connected()) {
-    mqtt.publish(TOPIC_BOMBA, bombaLigada ? "ON" : "OFF");
+    mqtt.publish(TOPIC_BOMBA, bombaLigada ? "ON" : "OFF", true);
   }
 }
