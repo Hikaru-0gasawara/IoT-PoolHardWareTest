@@ -1,107 +1,151 @@
 # AquaSense IoT — Pool Hardware Test
 
-Firmware de protótipo para monitoramento de qualidade de água em piscinas, desenvolvido para ESP32.  
-Utiliza LEDs no lugar dos sensores reais para validação do hardware e da lógica de controle.
+Firmware para monitoramento de qualidade de água em piscinas, desenvolvido para **ESP32**.
+Mede pH, ORP, condutividade e temperaturas (piscina + coletor solar), controla a bomba de
+circulação solar por histerese, exibe os dados em um LCD I2C e publica tudo via **MQTT**
+para o **HiveMQ Cloud**. No protótipo, os sensores são substituídos por LEDs e por leituras
+simuladas, permitindo validar todo o hardware e a lógica de controle.
 
-**IBMEC São Paulo / Invivio Tecnologia Ltda**  
-Sistemas Embarcados — Prof. Marcel Stefan Wagner, PhD  
+**IBMEC São Paulo / Invivio Tecnologia Ltda**
+Sistemas Embarcados — Prof. Marcel Stefan Wagner, PhD
 Grupo 1: Okaru, João Perestrelo, Roan
 
 ---
 
-## Visão Geral
+## Sumário
 
-O AquaSense IoT monitora continuamente os parâmetros da água da piscina e do coletor solar, exibe os dados em um display LCD I2C e publica as leituras via MQTT (TLS) para uma nuvem HiveMQ. Quando os valores saem da faixa ideal, LEDs acendem como alerta. Uma bomba de circulação solar é controlada automaticamente por lógica de histerese com proteção anti-cycling.
-
----
-
-## Hardware
-
-| Componente | Descrição |
-|---|---|
-| ESP32 | Microcontrolador principal |
-| LCD I2C 16×2 | Display de leituras (autodetecta 0x27 / 0x3F) |
-| LED 1 (D4) | Alerta de pH fora da faixa |
-| LED Wi-Fi (D5) | Status da conexão Wi-Fi |
-| LED 2 (D18) | Alerta de ORP fora da faixa |
-| LED 3 (D19) | Alerta de condutividade fora da faixa |
-| Relé (D26) | Controle da bomba do coletor solar |
-
-### Mapeamento de Pinos
-
-```
-D4   → LED pH
-D5   → LED Wi-Fi
-D18  → LED ORP
-D19  → LED Condutividade
-D21  → LCD SDA (I2C)
-D22  → LCD SCL (I2C)
-D26  → Relé (bomba solar)
-```
+- [Visão geral](#visão-geral)
+- [Hardware e pinagem](#hardware-e-pinagem)
+- [Parâmetros monitorados](#parâmetros-monitorados)
+- [Lógica de controle da bomba](#lógica-de-controle-da-bomba)
+- [Display LCD](#display-lcd)
+- [Comunicação MQTT (HiveMQ)](#comunicação-mqtt-hivemq)
+- [Configuração](#configuração)
+- [Bibliotecas necessárias](#bibliotecas-necessárias)
+- [Como compilar e gravar](#como-compilar-e-gravar)
+- [Comportamento no boot](#comportamento-no-boot)
+- [Troubleshooting](#troubleshooting)
+- [Nota de segurança (TLS)](#nota-de-segurança-tls)
+- [Estrutura do repositório](#estrutura-do-repositório)
 
 ---
 
-## Parâmetros Monitorados
+## Visão geral
 
-| Parâmetro | Faixa Ideal |
-|---|---|
-| pH | 7.2 – 7.6 |
-| ORP (potencial de oxirredução) | 650 – 750 mV |
-| Condutividade (EC) | 800 – 1500 µS/cm |
-| Temperatura piscina | — (referência para controle da bomba) |
-| Temperatura coletor solar | — (referência para controle da bomba) |
+A cada **5 segundos** o firmware:
+
+1. Lê pH, ORP, condutividade e as temperaturas da piscina e do coletor solar.
+2. Acende os LEDs de alerta para cada parâmetro fora da faixa ideal.
+3. Aplica a histerese de temperatura para ligar/desligar a bomba de circulação.
+4. Atualiza o LCD (alternando entre duas telas).
+5. Publica todas as leituras nos tópicos MQTT.
+
+Wi-Fi e MQTT são **não-bloqueantes**: se a rede ou o broker caírem, o sistema continua
+operando localmente (LEDs, LCD e bomba) e tenta reconectar em segundo plano.
 
 ---
 
-## Lógica de Controle da Bomba Solar
+## Hardware e pinagem
 
-A bomba é ativada quando a diferença de temperatura entre o coletor solar e a piscina (`ΔT`) atinge **5 °C**, e desligada quando cai para **1 °C** (histerese). Um temporizador de **60 segundos** impede ciclos rápidos de liga/desliga (anti-cycling).
+| Componente | Pino | Função |
+|---|---|---|
+| ESP32 (DevKit) | — | Microcontrolador principal |
+| LED pH | **D4** | Acende quando pH fora de 7.2–7.6 |
+| LED Wi-Fi | **D5** | Aceso = Wi-Fi conectado |
+| LED ORP | **D18** | Acende quando ORP fora de 650–750 mV |
+| LED Condutividade | **D19** | Acende quando EC fora de 800–1500 µS/cm |
+| Relé da bomba | **D26** | Controle da bomba do coletor solar (ativo em **LOW**) |
+| LCD I2C — SDA | **D21** | Barramento I2C de dados |
+| LCD I2C — SCL | **D22** | Barramento I2C de clock |
+
+> O relé é **ativo em nível baixo** (`RELE_ACTIVE_LOW = 1`). Se o seu módulo de relé for
+> ativo em nível alto, troque para `#define RELE_ACTIVE_LOW 0` no início do código.
+
+> ⚠️ **Alimentação do LCD:** use **5 V** (não 3,3 V) e garanta que o **GND do LCD esteja
+> ligado ao GND do ESP32**. Sem GND comum, os sinais I2C não chegam e o display fica em branco.
+
+---
+
+## Parâmetros monitorados
+
+| Parâmetro | Faixa ideal | Constantes no código |
+|---|---|---|
+| pH | 7.2 – 7.6 | `PH_MIN`, `PH_MAX` |
+| ORP (oxirredução) | 650 – 750 mV | `ORP_MIN`, `ORP_MAX` |
+| Condutividade (EC) | 800 – 1500 µS/cm | `COND_MIN`, `COND_MAX` |
+| Temperatura piscina | — | referência para a bomba |
+| Temperatura coletor | — | referência para a bomba |
+
+---
+
+## Lógica de controle da bomba
+
+A bomba do coletor solar é controlada pela diferença de temperatura `ΔT = T_coletor − T_piscina`,
+com **histerese** e proteção **anti-cycling**:
 
 ```
-ΔT ≥ 5 °C  →  LIGA bomba
-ΔT ≤ 1 °C  →  DESLIGA bomba
-Intervalo mínimo entre mudanças: 60 s
+ΔT ≥ 5 °C   →  LIGA  a bomba
+ΔT ≤ 1 °C   →  DESLIGA a bomba
+Intervalo mínimo entre mudanças: 60 s (anti-cycling)
 ```
+
+A primeira mudança de estado após o boot é liberada imediatamente (`primeiroCiclo`), sem
+esperar os 60 s. Leituras de temperatura inválidas não disparam a bomba.
 
 ---
 
 ## Display LCD
 
-O display alterna entre duas telas a cada ciclo de 5 segundos:
+O endereço I2C é **detectado automaticamente** (tenta `0x27`, `0x3F`, `0x20`, `0x38`, `0x26`,
+`0x3E` e, se nenhum responder, faz uma varredura completa do barramento). Se nenhum display
+for encontrado, o sistema continua funcionando normalmente sem ele (`lcdOK = false`).
 
-**Tela 1 — Qualidade da Água**
+O LCD alterna entre duas telas a cada ciclo, reescrevendo as linhas com padding (sem `clear()`,
+para evitar flicker):
+
+**Tela 1 — Química da água**
 ```
 pH7.40 ORP700
-EC1100 B: ON
+EC1100 B:ON
 ```
 
 **Tela 2 — Temperaturas**
 ```
-Tp: 24.0°C
-Ts: 28.0°C ON
+Tp:24.0°C
+Ts:28.0°C ON
 ```
 
 ---
 
-## Comunicação MQTT (HiveMQ Cloud)
+## Comunicação MQTT (HiveMQ)
 
-Conexão **TLS validada** na porta **8883**, usando o certificado raiz ISRG Root X1 (Let's Encrypt) embarcado no firmware. Todos os tópicos publicam a cada 5 segundos. Reconexão Wi-Fi e MQTT são **não-bloqueantes** com backoff (não travam o loop principal).
+Conexão **MQTT sobre TLS** na porta **8883**. O `clientId` é único por dispositivo (derivado
+dos 48 bits do MAC do ESP32). A reconexão é não-bloqueante (tenta a cada 5 s) e usa **LWT**
+(Last Will & Testament): se o ESP32 cair, o broker publica `offline` automaticamente.
 
 | Tópico | Conteúdo | Retain |
 |---|---|---|
-| `aquasense/agua/ph` | Valor de pH (float) | — |
-| `aquasense/agua/orp` | Valor de ORP em mV (float) | — |
-| `aquasense/agua/condutividade` | Condutividade em µS/cm (float) | — |
-| `aquasense/temperatura/piscina` | Temperatura da piscina em °C (float) | — |
-| `aquasense/temperatura/coletor` | Temperatura do coletor solar em °C (float) | — |
-| `aquasense/bomba/estado` | Estado da bomba: `ON` ou `OFF` | ✓ |
-| `aquasense/sistema/status` | `online` / `offline` (LWT — Last Will and Testament) | ✓ |
+| `aquasense/agua/ph` | pH (float, 2 casas) | — |
+| `aquasense/agua/orp` | ORP em mV (float) | — |
+| `aquasense/agua/condutividade` | EC em µS/cm (float) | — |
+| `aquasense/temperatura/piscina` | Temperatura da piscina em °C | — |
+| `aquasense/temperatura/coletor` | Temperatura do coletor em °C | — |
+| `aquasense/bomba/estado` | `ON` / `OFF` | ✓ |
+| `aquasense/sistema/status` | `online` / `offline` (LWT) | ✓ |
+
+Parâmetros do cliente: buffer **512 B**, keepalive **30 s**, socket timeout **10 s**.
+
+### Testando pela web (HiveMQ)
+
+1. No painel do seu cluster HiveMQ Cloud, abra o **Web Client**.
+2. Conecte com o host, usuário e senha do cluster (WebSocket TLS — porta **8884**).
+3. Faça *subscribe* em `aquasense/#` para ver todas as leituras chegando em tempo real.
 
 ---
 
 ## Configuração
 
-Antes de compilar, edite as constantes no início do arquivo `AquaSense.ino`:
+Edite **apenas** estas linhas no início de `AquaSense.ino`:
 
 ```cpp
 // Wi-Fi
@@ -109,58 +153,111 @@ const char* WIFI_SSID = "SUA_REDE_WIFI";
 const char* WIFI_PASS = "SUA_SENHA_WIFI";
 
 // HiveMQ Cloud
-const char* MQTT_HOST = "xxxxxxxxxxxx.s1.eu.hivemq.cloud";
+const char* MQTT_HOST = "xxxxxxxxxxxx.s1.eu.hivemq.cloud";  // host do seu cluster
 const char* MQTT_USER = "seu_usuario_hivemq";
 const char* MQTT_PASS = "sua_senha_hivemq";
 ```
 
----
+O MQTT só é habilitado quando **todas** estas condições são verdadeiras:
 
-## Bibliotecas Necessárias
+- `MQTT_HOST` preenchido **e diferente** do placeholder `xxxxxxxxxxxx.s1.eu.hivemq.cloud`
+- `MQTT_USER` preenchido
+- `MQTT_PASS` preenchido
 
-Instale via **Arduino IDE → Library Manager**:
-
-| Biblioteca | Autor |
-|---|---|
-| `WiFi` | Nativa do ESP32 |
-| `WiFiClientSecure` | Nativa do ESP32 |
-| `PubSubClient` | Nick O'Leary |
-| `LiquidCrystal_I2C` | Frank de Brabander (versão com `lcd.begin()` sem argumentos) |
+Se qualquer uma faltar, o firmware roda **offline** (LEDs, LCD e bomba continuam funcionando)
+e registra `[MQTT] desabilitado` no Serial — útil para testar o hardware sem nuvem.
 
 ---
 
-## Como Compilar e Gravar
+## Bibliotecas necessárias
 
-1. Instale o suporte ao ESP32 no Arduino IDE via **Boards Manager** (`esp32` by Espressif)
-2. Selecione a placa **ESP32 Dev Module**
-3. Instale as bibliotecas listadas acima
-4. Preencha as credenciais de Wi-Fi e MQTT no código
-5. Compile e grave via USB
+Instale via **Arduino IDE → Tools → Manage Libraries**:
 
----
-
-## Simulação dos Sensores
-
-Neste protótipo, os sensores físicos são substituídos por funções que geram valores oscilantes com `sinf(millis())`, permitindo testar toda a lógica de controle, LEDs, LCD e MQTT sem os sensores reais conectados.
+| Biblioteca | Autor | Observação |
+|---|---|---|
+| `PubSubClient` | Nick O'Leary | Cliente MQTT |
+| `LiquidCrystal_I2C` | Marco Schwartz / Frank de Brabander | Precisa expor `init()` e `backlight()` |
+| `WiFi`, `WiFiClientSecure`, `Wire` | Espressif | Já incluídas no core do ESP32 |
 
 ---
 
-## Otimizações da v2.0
+## Como compilar e gravar
 
-- **TLS com validação de certificado** (ISRG Root X1) — sem `setInsecure()`
-- **Reconexão Wi-Fi e MQTT 100% não-bloqueantes** com backoff (loop nunca trava)
-- **Last Will and Testament (LWT)** — broker avisa quando o ESP32 cai
-- **Sem heap dinâmico** — LCD estático, `snprintf` + `char[17]` no lugar de `String`
-- **clientId MQTT único** usando todos os 48 bits do MAC do ESP32
-- **Auto-reconnect Wi-Fi** explicitamente habilitado
-- **Detecção automática** do endereço I2C do LCD (0x27 / 0x3F)
-- **LCD sem flicker** (padding em vez de `clear()`)
+1. **Boards Manager:** instale o pacote `esp32` (by Espressif Systems).
+2. **Placa:** selecione *ESP32 Dev Module* (ou a sua variante) em **Tools → Board**.
+3. **Bibliotecas:** instale `PubSubClient` e `LiquidCrystal_I2C`.
+4. **Pasta do sketch:** o Arduino IDE exige que `AquaSense.ino` esteja dentro de uma pasta
+   chamada `AquaSense/`. Ao abrir o arquivo da raiz do repositório, o IDE oferece criar essa
+   pasta automaticamente — aceite. (Alternativa: copie o `.ino` para `AquaSense/AquaSense.ino`.)
+5. **Credenciais:** preencha Wi-Fi e HiveMQ (seção [Configuração](#configuração)).
+6. **Upload:** conecte o ESP32 via USB, selecione a porta e clique em *Upload*.
+7. Abra o **Serial Monitor** a **115200 baud** para acompanhar o boot e as leituras.
 
 ---
 
-## Estrutura do Repositório
+## Comportamento no boot
 
 ```
-AquaSense.ino   ← firmware principal (ESP32 / Arduino)
-README.md
+=== AquaSense IoT - boot v2.1 ===
+[LCD] endereco 0x27
+... (teste dos 3 LEDs piscando) ...
+[WiFi] Conectando... OK  IP=192.168.0.42  RSSI=-58 dBm
+[MQTT] clientId=aquasense-XXXXXXXXXXXX
+[MQTT] conectando... OK
 ```
+
+Durante a operação, cada ciclo imprime uma linha de diagnóstico:
+
+```
+pH=7.40 ORP=700 EC=1100 Tp=24.0 Ts=28.0 dT=4.0 B=OFF LCD=OK WiFi=OK MQTT=OK
+```
+
+---
+
+## Troubleshooting
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| LCD em branco / só blocos | Sem GND comum, ou alimentado em 3,3 V | Use 5 V e ligue o GND do LCD ao GND do ESP32 |
+| `[LCD] FALHOU` no Serial | Endereço I2C diferente ou fiação errada | Confira SDA=D21 / SCL=D22; veja o endereço impresso na varredura |
+| `[WiFi] FALHOU` | SSID/senha errados, ou rede 5 GHz | ESP32 usa 2,4 GHz; confira credenciais |
+| MQTT `rc=4` | Credenciais inválidas | Verifique `MQTT_USER` / `MQTT_PASS` do cluster |
+| MQTT `rc=5` | Não autorizado | Cheque as permissões do usuário no HiveMQ |
+| MQTT `rc=-2` | Falha de conexão / TLS | Confira `MQTT_HOST` e a porta 8883 |
+| MQTT `rc=-4` | Timeout | Sinal Wi-Fi fraco ou broker indisponível |
+| Bomba não liga | `ΔT < 5 °C` ou anti-cycling ativo | Aguarde ΔT ≥ 5 °C e o intervalo de 60 s |
+| `[MQTT] desabilitado` | Credenciais não preenchidas | Preencha host/usuário/senha (seção Configuração) |
+
+Códigos `rc` são o retorno de `PubSubClient::state()`.
+
+---
+
+## Nota de segurança (TLS)
+
+Esta versão usa `wifiClient.setInsecure()` — a conexão é **criptografada**, mas o certificado
+do servidor **não é validado**. Isso é adequado para **protótipo, testes e uso acadêmico**.
+
+Para um deploy de produção real, substitua por validação de certificado:
+
+```cpp
+wifiClient.setCACert(ISRG_ROOT_X1);   // certificado raiz do HiveMQ Cloud
+```
+
+(O HiveMQ Cloud usa cadeia Let's Encrypt — raiz **ISRG Root X1**.)
+
+---
+
+## Estrutura do repositório
+
+```
+AquaSense.ino     ← firmware PRINCIPAL (ESP32 / Arduino C++)  ◀── este é o código de produção
+README.md         ← esta documentação
+.gitignore
+wokwi/
+  main.py         ← versão EXPERIMENTAL em MicroPython (Wokwi)
+```
+
+> **`AquaSense.ino` é o firmware principal e oficial do projeto.**
+> A pasta `wokwi/` contém uma versão experimental em MicroPython (simulação no Wokwi, com
+> broker público `broker.hivemq.com`, dosagem química autônoma e integração com Alexa) — usada
+> apenas para experimentos e **não** é a base de produção.
