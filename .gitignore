@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Arduino / PlatformIO build artifacts
+build/
+*.hex
+*.bin
+*.elf
+
+# Editor / OS
+.vscode/
+.DS_Store
