@@ -1,5 +1,9 @@
+#define USAR_TLS 0   // 0 = broker publico de teste (broker.hivemq.com, sem TLS/login)  |  1 = HiveMQ Cloud (TLS porta 8883)
+
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#if USAR_TLS
+  #include <WiFiClientSecure.h>
+#endif
 #include <PubSubClient.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -29,23 +33,35 @@ uint8_t enderecoLCD = 0;
 const char* WIFI_SSID = "SUA_REDE_WIFI";
 const char* WIFI_PASS = "SUA_SENHA_WIFI";
 
-const char* MQTT_HOST = "xxxxxxxxxxxx.s1.eu.hivemq.cloud";
-const int   MQTT_PORT = 8883;
-const char* MQTT_USER = "seu_usuario_hivemq";
-const char* MQTT_PASS = "sua_senha_hivemq";
+#if USAR_TLS
+  const char* MQTT_HOST = "xxxxxxxxxxxx.s1.eu.hivemq.cloud";
+  const int   MQTT_PORT = 8883;
+  const char* MQTT_USER = "seu_usuario_hivemq";
+  const char* MQTT_PASS = "sua_senha_hivemq";
+#else
+  const char* MQTT_HOST = "broker.hivemq.com";   // broker publico de teste
+  const int   MQTT_PORT = 1883;                  // MQTT sem TLS
+  const char* MQTT_USER = "";                    // sem autenticacao
+  const char* MQTT_PASS = "";
+#endif
 
-const char* TOPIC_PH             = "aquasense/agua/ph";
-const char* TOPIC_ORP            = "aquasense/agua/orp";
-const char* TOPIC_COND           = "aquasense/agua/condutividade";
-const char* TOPIC_T_PISC         = "aquasense/temperatura/piscina";
-const char* TOPIC_T_SOLAR        = "aquasense/temperatura/coletor";
-const char* TOPIC_BOMBA          = "aquasense/bomba/estado";
-const char* TOPIC_STATUS         = "aquasense/sistema/status";
-const char* TOPIC_ALEXA_SNAPSHOT = "aquasense/alexa/snapshot";
-const char* TOPIC_ALEXA_RESPOSTA = "aquasense/alexa/resposta";
-const char* TOPIC_CMD_DOSAGEM    = "aquasense/dosagem/comando";
+// Prefixo unico para nao colidir com outros usuarios do broker publico.
+const char* TOPIC_PH             = "aquasense-ibmec/agua/ph";
+const char* TOPIC_ORP            = "aquasense-ibmec/agua/orp";
+const char* TOPIC_COND           = "aquasense-ibmec/agua/condutividade";
+const char* TOPIC_T_PISC         = "aquasense-ibmec/temperatura/piscina";
+const char* TOPIC_T_SOLAR        = "aquasense-ibmec/temperatura/coletor";
+const char* TOPIC_BOMBA          = "aquasense-ibmec/bomba/estado";
+const char* TOPIC_STATUS         = "aquasense-ibmec/sistema/status";
+const char* TOPIC_ALEXA_SNAPSHOT = "aquasense-ibmec/alexa/snapshot";
+const char* TOPIC_ALEXA_RESPOSTA = "aquasense-ibmec/alexa/resposta";
+const char* TOPIC_CMD_DOSAGEM    = "aquasense-ibmec/dosagem/comando";
 
-WiFiClientSecure wifiClient;
+#if USAR_TLS
+  WiFiClientSecure wifiClient;
+#else
+  WiFiClient       wifiClient;
+#endif
 PubSubClient     mqtt(wifiClient);
 
 bool mqttHabilitado = false;
@@ -296,7 +312,9 @@ void gerenciarWiFi() {
 
 void iniciarMQTT() {
   if (!mqttHabilitado) { Serial.println(F("[MQTT] desabilitado")); return; }
+#if USAR_TLS
   wifiClient.setInsecure();
+#endif
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(30);
@@ -315,7 +333,11 @@ void gerenciarMQTT() {
   if (agora < proxRetryMQTT) return;
   proxRetryMQTT = agora + MQTT_RETRY_MS;
   Serial.print(F("[MQTT] conectando..."));
-  bool ok = mqtt.connect(clientId, MQTT_USER, MQTT_PASS, TOPIC_STATUS, 1, true, "offline");
+  bool ok;
+  if (strlen(MQTT_USER) > 0)
+    ok = mqtt.connect(clientId, MQTT_USER, MQTT_PASS, TOPIC_STATUS, 1, true, "offline");
+  else
+    ok = mqtt.connect(clientId, TOPIC_STATUS, 1, true, "offline");
   if (ok) {
     Serial.println(F(" OK"));
     mqtt.publish(TOPIC_STATUS, "online", true);
@@ -340,7 +362,7 @@ void blinkTesteLEDs() {
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println(F("\n=== AquaSense IoT - boot v2.2 ==="));
+  Serial.println(F("\n=== AquaSense IoT - boot v2.3 ==="));
 
   pinMode(PIN_LED_PH, OUTPUT);  pinMode(PIN_LED_ORP, OUTPUT);
   pinMode(PIN_LED_COND, OUTPUT); pinMode(PIN_LED_WIFI, OUTPUT);
@@ -360,8 +382,10 @@ void setup() {
 
   mqttHabilitado =
       strlen(MQTT_HOST) > 0 &&
-      strcmp(MQTT_HOST, "xxxxxxxxxxxx.s1.eu.hivemq.cloud") != 0 &&
-      strlen(MQTT_USER) > 0 && strlen(MQTT_PASS) > 0;
+      strcmp(MQTT_HOST, "xxxxxxxxxxxx.s1.eu.hivemq.cloud") != 0;
+#if USAR_TLS
+  mqttHabilitado = mqttHabilitado && strlen(MQTT_USER) > 0 && strlen(MQTT_PASS) > 0;
+#endif
 
   iniciarWiFi();
   iniciarMQTT();
