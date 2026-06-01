@@ -64,7 +64,7 @@ MAX_DOSES_DIA_CLORO = 8
 MAX_DOSES_DIA_ACIDO = 4
 MAX_DOSES_DIA_BASE  = 4
 
-VERSAO_FIRMWARE = "4.1.0-pt-alexa"
+VERSAO_FIRMWARE = "4.2.0-pt-alexa"
 
 TOPICO_PH              = MQTT_NAMESPACE + "/piscina/ph"
 TOPICO_ORP             = MQTT_NAMESPACE + "/piscina/orp"
@@ -82,6 +82,18 @@ TOPICO_ALEXA_SNAPSHOT  = MQTT_NAMESPACE + "/alexa/snapshot"
 TOPICO_ALEXA_RESPOSTA  = MQTT_NAMESPACE + "/alexa/resposta"
 TOPICO_MODO_CONTROLE   = MQTT_NAMESPACE + "/controle/modo"
 TOPICO_COMANDO_DOSAGEM = MQTT_NAMESPACE + "/dosagem/comando"
+
+# Last Will & Testament: broker publica isto se o ESP32 cair sem aviso.
+# Sem LWT, o status/retain ficaria preso em "online" para sempre (e a Alexa
+# diria que a piscina está online com o dispositivo morto).
+CARGA_OFFLINE = ujson.dumps({
+    "status": "offline",
+    "firmware": VERSAO_FIRMWARE,
+    "namespace": MQTT_NAMESPACE,
+})
+
+# Limite de comandos enfileirados (proteção contra flood do broker público)
+MAX_COMANDOS_FILA = 10
 
 
 def iniciar_adc(num_pino):
@@ -230,20 +242,38 @@ def verificar_alertas(ph, cloro, alc, temp_piscina):
     return alertas
 
 
-def parada_emergencia_ativa():
+def _ler_parada_hardware():
+    """Leitura física debounced do botão de parada (ativo LOW)."""
     leituras = [btn_parada_emergencia.value() for _ in range(3)]
     time.sleep_ms(5)
     leituras.append(btn_parada_emergencia.value())
     return all(v == 0 for v in leituras)
 
 
-_ultimo_estado_parada = [False]
+# Estado da parada amostrado UMA vez por ciclo. Antes, parada_emergencia_ativa()
+# era chamada ~6x por ciclo (pode_dosar, snapshot, debug, consolidado, etc.),
+# cada uma com sleep de debounce — gerava ~30ms de blocking E podia retornar
+# valores DIFERENTES dentro do mesmo ciclo. Agora lê uma vez e cacheia.
+_parada_cache    = [False]
+_parada_anterior = [False]
+
+
+def atualizar_parada():
+    """Amostra o hardware uma vez e atualiza o cache. Chamar no topo do loop."""
+    _parada_cache[0] = _ler_parada_hardware()
+    return _parada_cache[0]
+
+
+def parada_emergencia_ativa():
+    """Valor cacheado da parada (consistente durante todo o ciclo)."""
+    return _parada_cache[0]
 
 
 def parada_emergencia_mudou():
-    atual = parada_emergencia_ativa()
-    mudou = atual != _ultimo_estado_parada[0]
-    _ultimo_estado_parada[0] = atual
+    """True se a parada mudou de estado desde o ciclo anterior."""
+    atual = _parada_cache[0]
+    mudou = atual != _parada_anterior[0]
+    _parada_anterior[0] = atual
     if mudou:
         print("  [SEGURANÇA] Parada: {}".format("ATIVO" if atual else "ok"))
     return mudou
@@ -284,7 +314,9 @@ class ControladorDosagem:
         self.ultima_dose_ms     = {"cloro": 0, "acido": 0, "base": 0}
         self.historico_dosagem  = []
         self.ultima_limpeza_ms  = time.ticks_ms()
-        self.comando_pendente   = None
+        # Fila de comandos (era slot único — comandos chegando rápido se
+        # sobrescreviam e a Alexa ficava sem resposta). Agora todos são drenados.
+        self.comandos_pendentes = []
         self.eventos_pendentes  = []
 
     def pode_dosar(self, parametro, valor_ph, valor_cloro, fonte):
@@ -378,24 +410,63 @@ class ControladorDosagem:
                 ("bloqueada", param, razao, "automatico", "automatico", None))
         return None
 
-    def processar_comando_pendente(self, valor_ph, valor_cloro):
-        if self.comando_pendente is None:
-            return None
-        cmd        = self.comando_pendente
-        parametro  = cmd["parametro"]
-        origem     = cmd.get("origem", "dashboard")
-        comando_id = cmd.get("comando_id")
-        self.comando_pendente = None
-        if self.modo != "manual":
-            self.eventos_pendentes.append(
-                ("bloqueada", parametro, "modo_nao_manual", "manual", origem, comando_id))
-            return None
-        ok, motivo = self.pode_dosar(parametro, valor_ph, valor_cloro, "manual")
-        if ok:
-            return (parametro, "comando via " + origem, "manual", origem, comando_id)
+    def abortar_por_emergencia(self):
+        """Interlock físico: desliga TODAS as dosadoras e cancela dose ativa.
+
+        Chamado todo ciclo em que a parada está ativa. Antes, a parada só era
+        uma pré-condição em pode_dosar — uma dose já EM ANDAMENTO continuava
+        até o pulso acabar mesmo com o botão pressionado. Agora corta na hora.
+        """
+        for p in PINOS_DOSAGEM.values():
+            p.value(0)
+        if self.dose_em_andamento is None:
+            return
+        parametro  = self.dose_em_andamento
+        origem     = self.dose_origem
+        comando_id = self.dose_comando_id
+        self.dose_em_andamento = None
+        self.dose_origem       = None
+        self.dose_comando_id   = None
         self.eventos_pendentes.append(
-            ("bloqueada", parametro, motivo, "manual", origem, comando_id))
-        return None
+            ("abortada", parametro, "parada_emergencia", "", origem, comando_id))
+        print("  [SEGURANÇA] dose {} ABORTADA por parada de emergência".format(
+            parametro.upper()))
+
+    def processar_comandos_pendentes(self, valor_ph, valor_cloro):
+        """Drena TODA a fila de comandos manuais e responde a cada um.
+
+        Chamado em QUALQUER modo. Antes só rodava em modo manual — um comando
+        enviado em modo automatico/parada ficava preso na variável para sempre
+        e podia disparar uma dose inesperada ao trocar de modo, sem nunca
+        responder à Alexa. Agora todo comando recebe um evento de retorno.
+
+        Retorna a primeira decisão de dose viável, ou None.
+        """
+        if not self.comandos_pendentes:
+            return None
+        pendentes = self.comandos_pendentes
+        self.comandos_pendentes = []
+        decisao = None
+        for cmd in pendentes:
+            parametro  = cmd["parametro"]
+            origem     = cmd.get("origem", "dashboard")
+            comando_id = cmd.get("comando_id")
+            # Uma dose por ciclo: comandos extras são respondidos como bloqueados.
+            if decisao is not None:
+                self.eventos_pendentes.append(
+                    ("bloqueada", parametro, "dose_em_andamento", "manual", origem, comando_id))
+                continue
+            if self.modo != "manual":
+                self.eventos_pendentes.append(
+                    ("bloqueada", parametro, "modo_" + self.modo, "manual", origem, comando_id))
+                continue
+            ok, motivo = self.pode_dosar(parametro, valor_ph, valor_cloro, "manual")
+            if ok:
+                decisao = (parametro, "comando via " + origem, "manual", origem, comando_id)
+            else:
+                self.eventos_pendentes.append(
+                    ("bloqueada", parametro, motivo, "manual", origem, comando_id))
+        return decisao
 
     def limpar_historico_se_necessario(self):
         agora = time.ticks_ms()
@@ -442,6 +513,8 @@ def conectar_mqtt(callback):
                 keepalive=MQTT_KEEPALIVE,
             )
             cliente.set_callback(callback)
+            # LWT precisa ser definido ANTES de connect()
+            cliente.set_last_will(TOPICO_STATUS, CARGA_OFFLINE, retain=True, qos=0)
             cliente.connect()
             cliente.subscribe(TOPICO_MODO_CONTROLE)
             cliente.subscribe(TOPICO_COMANDO_DOSAGEM)
@@ -665,12 +738,15 @@ def callback_mqtt(topico, msg):
                 origem = dados.get("origem", "dashboard")
                 if origem not in ("dashboard", "alexa"):
                     origem = "dashboard"
-                dosador.comando_pendente = {
-                    "parametro":  parametro,
-                    "origem":     origem,
-                    "comando_id": dados.get("comando_id"),
-                }
-                print("  [CONTROLE] comando: {} origem:{}".format(parametro, origem))
+                if len(dosador.comandos_pendentes) >= MAX_COMANDOS_FILA:
+                    print("  [CONTROLE] fila cheia — comando descartado")
+                else:
+                    dosador.comandos_pendentes.append({
+                        "parametro":  parametro,
+                        "origem":     origem,
+                        "comando_id": dados.get("comando_id"),
+                    })
+                    print("  [CONTROLE] comando: {} origem:{}".format(parametro, origem))
     except Exception as e:
         print("  [MQTT] erro callback: {}".format(e))
 
@@ -725,6 +801,12 @@ ultimo_modo = dosador.modo
 while True:
     ciclo += 1
 
+    # SEGURANÇA PRIMEIRO: amostra a parada uma vez e, se ativa, corta dosagem
+    # imediatamente (antes mesmo de processar comandos ou sensores).
+    parada_ativa = atualizar_parada()
+    if parada_ativa:
+        dosador.abortar_por_emergencia()
+
     try:
         cliente.check_msg()
     except Exception as e:
@@ -749,11 +831,14 @@ while True:
 
     dosador.finalizar_dose_se_necessario()
 
-    decisao = None
-    if dosador.modo == "automatico":
+    # Comandos manuais (dashboard/alexa) são SEMPRE drenados e respondidos,
+    # em qualquer modo — garante resposta correlacionada à Alexa e evita
+    # comando "preso" disparando dose inesperada depois.
+    decisao = dosador.processar_comandos_pendentes(valor_ph, cloro_ppm)
+
+    # Em modo automático, se nenhum comando manual iniciou dose, decide sozinho.
+    if decisao is None and dosador.modo == "automatico":
         decisao = dosador.decidir_automatico(valor_ph, cloro_ppm)
-    elif dosador.modo == "manual":
-        decisao = dosador.processar_comando_pendente(valor_ph, cloro_ppm)
 
     if decisao is not None:
         parametro, motivo, fonte, origem, comando_id = decisao
