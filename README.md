@@ -176,7 +176,7 @@ Instale via **Arduino IDE → Tools → Manage Libraries**:
 | Biblioteca | Autor | Observação |
 |---|---|---|
 | `PubSubClient` | Nick O'Leary | Cliente MQTT |
-| `LiquidCrystal_I2C` | Marco Schwartz / Frank de Brabander | Precisa expor `init()` e `backlight()` |
+| `LiquidCrystal_I2C` | **Frank de Brabander** | Versão que usa `begin()` (sem argumentos) e `backlight()` |
 | `WiFi`, `WiFiClientSecure`, `Wire` | Espressif | Já incluídas no core do ESP32 |
 
 ---
@@ -218,6 +218,7 @@ pH=7.40 ORP=700 EC=1100 Tp=24.0 Ts=28.0 dT=4.0 B=OFF LCD=OK WiFi=OK MQTT=OK
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
+| Erro de compilação: `no member named 'init'` | Biblioteca LiquidCrystal_I2C de autor diferente | Use a **de Frank de Brabander** (usa `begin()`). Se a sua usa `init()`, troque `lcd->begin()` por `lcd->init()` |
 | LCD em branco / só blocos | Sem GND comum, ou alimentado em 3,3 V | Use 5 V e ligue o GND do LCD ao GND do ESP32 |
 | `[LCD] FALHOU` no Serial | Endereço I2C diferente ou fiação errada | Confira SDA=D21 / SCL=D22; veja o endereço impresso na varredura |
 | `[WiFi] FALHOU` | SSID/senha errados, ou rede 5 GHz | ESP32 usa 2,4 GHz; confira credenciais |

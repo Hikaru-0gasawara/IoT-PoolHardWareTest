@@ -151,7 +151,7 @@ bool inicializarLCD() {
   Serial.print(F("[LCD] endereco 0x")); Serial.println(addr, HEX);
   lcd = new LiquidCrystal_I2C(addr, 16, 2);
   delay(50);
-  lcd->init();
+  lcd->begin();
   delay(100);
   lcd->backlight();
   delay(50);
