@@ -1,5 +1,5 @@
 // ============================================================================
-//  AquaSense IoT - ESP32  |  v2.4
+//  AquaSense IoT - ESP32  |  v2.4.1
 //  Monitoramento de qualidade da agua + controle de bomba do coletor solar
 //  IBMEC Sao Paulo - Sistemas Embarcados
 // ----------------------------------------------------------------------------
@@ -17,7 +17,7 @@
 
 /*
  * ============================================================================
- *  AquaSense IoT  -  Firmware otimizado v2.4
+ *  AquaSense IoT  -  Firmware otimizado v2.4.1
  *  IBMEC São Paulo / Invivio Tecnologia Ltda
  *  Sistemas Embarcados - Prof. Marcel Stefan Wagner, PhD
  *  Grupo 1: Okaru, João Perestrelo, Roan
@@ -215,7 +215,8 @@ static void logPublish(const char* topico, bool ok) {
 
 static bool extrairStringJSON(const char* json, const char* chave, char* out, size_t maxLen) {
   char busca[48];
-  snprintf(busca, sizeof(busca), "\"%s\":", chave);
+  snprintf(busca, sizeof(busca) - 1, "\"%s\":", chave);
+  busca[sizeof(busca) - 1] = '\0';
   const char* p = strstr(json, busca);
   if (!p) return false;
   p += strlen(busca);
@@ -232,26 +233,36 @@ static bool extrairStringJSON(const char* json, const char* chave, char* out, si
 static void buildAlertas(char* buf, size_t len) {
   if (len < 3) return;
 
-  buf[0] = '[';
-  buf[1] = '\0';
+  size_t pos = 0;
+  buf[pos++] = '[';
+  buf[pos]   = '\0';
   bool primeiro = true;
 
+  auto append = [&](const char* s) {
+    size_t disponivel = len - pos - 1;
+    size_t n = strlen(s);
+    if (n > disponivel) n = disponivel;
+    memcpy(buf + pos, s, n);
+    pos += n;
+    buf[pos] = '\0';
+  };
+
   if (foraDaFaixa(g_ph, PH_MIN, PH_MAX)) {
-    if (!primeiro) strncat(buf, ",", len - strlen(buf) - 1);
-    strncat(buf, "\"pH\"", len - strlen(buf) - 1);
+    if (!primeiro) append(",");
+    append("\"pH\"");
     primeiro = false;
   }
   if (foraDaFaixa(g_orp, ORP_MIN, ORP_MAX)) {
-    if (!primeiro) strncat(buf, ",", len - strlen(buf) - 1);
-    strncat(buf, "\"ORP\"", len - strlen(buf) - 1);
+    if (!primeiro) append(",");
+    append("\"ORP\"");
     primeiro = false;
   }
   if (foraDaFaixa(g_cond, COND_MIN, COND_MAX)) {
-    if (!primeiro) strncat(buf, ",", len - strlen(buf) - 1);
-    strncat(buf, "\"condutividade\"", len - strlen(buf) - 1);
+    if (!primeiro) append(",");
+    append("\"condutividade\"");
   }
 
-  strncat(buf, "]", len - strlen(buf) - 1);
+  append("]");
 }
 
 static void publicarSnapshotAlexa() {
@@ -274,7 +285,7 @@ static void publicarSnapshotAlexa() {
 }
 
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  if (length == 0 || length >= 400) return;
+  if (length == 0 || length > 399) return;
 
   char msg[400];
   memcpy(msg, payload, length);
@@ -363,7 +374,7 @@ void escreverLinhaLCD(uint8_t linha, const char* texto) {
 }
 
 void atualizarLCD(float ph, float orp, float cond, float tPisc, float tSolar) {
-  if (!lcdOK) return;
+  if (!lcdOK || lcd == nullptr) return;
 
   static bool tela = false;
   tela = !tela;
@@ -579,7 +590,7 @@ void blinkTesteLEDs() {
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println(F("\n=== AquaSense IoT - boot v2.4 ==="));
+  Serial.println(F("\n=== AquaSense IoT - boot v2.4.1 ==="));
 
   pinMode(PIN_LED_PH,   OUTPUT);
   pinMode(PIN_LED_ORP,  OUTPUT);
@@ -677,11 +688,11 @@ void loop() {
   Serial.print(F(" dT="));
   Serial.print(g_tSolar - g_tPisc, 1);
   Serial.print(F(" B="));
-  Serial.print(bombaLigada ? "ON " : "OFF");
+  Serial.print(bombaLigada ? "ON" : "OFF");
   Serial.print(F(" LCD="));
   Serial.print(lcdOK ? "OK" : "OFF");
   Serial.print(F(" WiFi="));
-  Serial.print(WiFi.status() == WL_CONNECTED ? "OK " : "OFF");
+  Serial.print(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
   Serial.print(F(" MQTT="));
   Serial.println(mqtt.connected() ? "OK" : "OFF");
 
