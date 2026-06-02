@@ -1,0 +1,13 @@
+# AquaSense IoT
+
+> Dashboard IoT para monitoramento e controle de piscina aquecida com coletor solar (ESP32 + MQTT).
+
+AquaSense é um cockpit web em tempo real que exibe pH, cloro, alcalinidade e temperaturas da piscina, além de controlar a bomba do aquecimento solar via histerese ΔT.
+
+## Pages
+
+- [Visão geral](/): Telemetria ao vivo dos sensores e status do sistema.
+- [Gráficos](/graficos): Histórico 24h/7d/30d com exportação CSV.
+- [Aquecimento](/controle): Estado do controle automático e log de acionamentos da bomba.
+- [Alertas](/alertas): Disparos quando parâmetros saem da faixa segura (ABNT NBR 10818).
+- [Configurações](/config): Calibração, conexão MQTT e ajustes do sistema.

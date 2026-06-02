@@ -1,0 +1,273 @@
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@source "../src";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-aqua-bg: var(--aqua-bg);
+  --color-aqua-surface: var(--aqua-surface);
+  --color-aqua-surface-2: var(--aqua-surface-2);
+  --color-aqua-border: var(--aqua-border);
+  --color-aqua-primary: var(--aqua-primary);
+  --color-aqua-secondary: var(--aqua-secondary);
+  --color-aqua-accent: var(--aqua-accent);
+  --color-aqua-text: var(--aqua-text);
+  --color-aqua-text-muted: var(--aqua-text-muted);
+
+  --color-status-ok: var(--status-ok);
+  --color-status-warn: var(--status-warn);
+  --color-status-crit: var(--status-crit);
+
+  --color-flow: var(--flow);
+
+  --color-param-ph: var(--param-ph);
+  --color-param-cloro: var(--param-cloro);
+  --color-param-alc: var(--param-alc);
+  --color-param-pool: var(--param-pool);
+  --color-param-solar: var(--param-solar);
+
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-magenta: var(--accent-magenta);
+  --color-accent-lime: var(--accent-lime);
+
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-aqua: 0 8px 32px -8px oklch(0.15 0.05 240 / 0.5);
+  --shadow-glow-accent: 0 0 24px oklch(0.75 0.15 220 / 0.4);
+}
+
+/* DARK is default for AquaSense */
+:root {
+  --radius: 1rem;
+
+  /* Map dark palette to shadcn tokens */
+  --background: oklch(0.18 0.04 245);          /* #0A1628 vibe */
+  --foreground: oklch(0.96 0.015 220);         /* #E8F4F8 */
+  --card: oklch(0.23 0.045 245);               /* #0F2236 */
+  --card-foreground: oklch(0.96 0.015 220);
+  --popover: oklch(0.23 0.045 245);
+  --popover-foreground: oklch(0.96 0.015 220);
+  --primary: oklch(0.76 0.16 220);             /* accent ciano */
+  --primary-foreground: oklch(0.18 0.04 245);
+  --secondary: oklch(0.30 0.05 240);
+  --secondary-foreground: oklch(0.96 0.015 220);
+  --muted: oklch(0.28 0.04 245);
+  --muted-foreground: oklch(0.72 0.025 240);   /* #94A3B8 */
+  --accent: oklch(0.30 0.05 240);
+  --accent-foreground: oklch(0.96 0.015 220);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 0);
+  --border: oklch(0.34 0.05 240);              /* #1C3A52 */
+  --input: oklch(0.34 0.05 240);
+  --ring: oklch(0.76 0.16 220);
+
+  /* AquaSense semantic */
+  --aqua-bg: oklch(0.18 0.04 245);
+  --aqua-surface: oklch(0.23 0.045 245);
+  --aqua-surface-2: oklch(0.27 0.05 245);
+  --aqua-border: oklch(0.34 0.05 240);
+  --aqua-primary: oklch(0.46 0.10 235);        /* #065A82 */
+  --aqua-secondary: oklch(0.55 0.09 220);      /* #1C7293 */
+  --aqua-accent: oklch(0.76 0.16 220);         /* #00B4D8 */
+  --aqua-text: oklch(0.96 0.015 220);
+  --aqua-text-muted: oklch(0.72 0.025 240);
+
+  --status-ok: oklch(0.72 0.17 160);           /* #10B981 */
+  --status-warn: oklch(0.78 0.16 75);          /* #F59E0B */
+  --status-crit: oklch(0.68 0.22 25);          /* #EF4444 */
+
+  /* Bomba/circulação — azul para não colidir com o verde de "OK do sistema" */
+  --flow: oklch(0.66 0.18 250);                /* ~ #3B82F6 */
+
+  --param-ph: oklch(0.55 0.18 285);            /* roxo */
+  --param-cloro: oklch(0.66 0.18 40);          /* laranja */
+  --param-alc: oklch(0.65 0.16 155);           /* verde */
+  --param-pool: oklch(0.68 0.14 240);          /* azul */
+  --param-solar: oklch(0.78 0.16 75);          /* amarelo solar */
+
+  /* Cockpit accent palette — usadas em pílulas, glows, displays */
+  --accent-cyan: oklch(0.82 0.15 200);
+  --accent-amber: oklch(0.80 0.16 75);
+  --accent-magenta: oklch(0.68 0.25 340);
+  --accent-lime: oklch(0.85 0.20 130);
+
+  --glow-cyan: 0 0 18px oklch(0.82 0.15 200 / 0.55);
+  --glow-amber: 0 0 18px oklch(0.80 0.16 75 / 0.55);
+  --glow-magenta: 0 0 18px oklch(0.68 0.25 340 / 0.55);
+  --glow-lime: 0 0 18px oklch(0.85 0.20 130 / 0.55);
+
+  --chart-1: var(--param-pool);
+  --chart-2: var(--param-solar);
+  --chart-3: var(--param-ph);
+  --chart-4: var(--param-cloro);
+  --chart-5: var(--param-alc);
+}
+
+.light {
+  --background: oklch(0.98 0.005 220);
+  --foreground: oklch(0.22 0.04 245);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.04 245);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.04 245);
+  --primary: oklch(0.55 0.14 230);
+  --primary-foreground: oklch(0.98 0.005 220);
+  --secondary: oklch(0.94 0.01 220);
+  --secondary-foreground: oklch(0.22 0.04 245);
+  --muted: oklch(0.94 0.01 220);
+  --muted-foreground: oklch(0.45 0.03 240);
+  --accent: oklch(0.94 0.01 220);
+  --accent-foreground: oklch(0.22 0.04 245);
+  --border: oklch(0.88 0.015 230);
+  --input: oklch(0.88 0.015 230);
+  --ring: oklch(0.55 0.14 230);
+
+  --aqua-bg: oklch(0.97 0.008 220);
+  --aqua-surface: oklch(1 0 0);
+  --aqua-surface-2: oklch(0.95 0.01 220);
+  --aqua-border: oklch(0.88 0.015 230);
+  --aqua-primary: oklch(0.46 0.10 235);
+  --aqua-secondary: oklch(0.55 0.09 220);
+  --aqua-accent: oklch(0.55 0.14 230);
+  --aqua-text: oklch(0.22 0.04 245);
+  --aqua-text-muted: oklch(0.45 0.03 240);
+  --flow: oklch(0.58 0.18 250);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    background-color: var(--color-aqua-bg);
+  }
+
+  body {
+    background-color: var(--color-aqua-bg);
+    color: var(--color-aqua-text);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .font-tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* font-variant-numeric only — preserva font-family do parent.
+     Use quando há texto descritivo + número misturados.
+     Para números puros que devem ser monospaced, use .font-tabular. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Cockpit display typography — números grandes, painel SCADA */
+  .text-display-large {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: clamp(2.25rem, 5vw, 3.75rem);
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .text-display-medium {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+  .text-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--color-aqua-text-muted);
+  }
+
+  .glow-cyan { box-shadow: var(--glow-cyan); }
+  .glow-amber { box-shadow: var(--glow-amber); }
+  .glow-magenta { box-shadow: var(--glow-magenta); }
+  .glow-lime { box-shadow: var(--glow-lime); }
+}
+
+/* Pulse used for online indicator and pump-on icon */
+@keyframes aqua-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+.aqua-pulse { animation: aqua-pulse 1.6s ease-in-out infinite; }
+
+/* Water flow particles in pipes */
+@keyframes flow-right {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+.flow-anim {
+  stroke-dasharray: 8 6;
+  animation: flow-right 0.9s linear infinite;
+}
+
+/* Pool surface ripple */
+@keyframes ripple {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-20px); }
+}
+.ripple-anim { animation: ripple 4s linear infinite; }
+
+/* Solar glow */
+@keyframes solar-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px oklch(0.78 0.16 75 / 0.5)); }
+  50% { filter: drop-shadow(0 0 16px oklch(0.78 0.16 75 / 0.8)); }
+}
+.solar-glow { animation: solar-glow 3s ease-in-out infinite; }
+
+/* Subtle fade-in */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.4s ease-out both; }
+
+/* Scrollbar minimal */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-aqua-border); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-aqua-secondary); }

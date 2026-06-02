@@ -1,53 +1,35 @@
 // ============================================================================
-//  AquaSense IoT - ESP32  |  v2.4.1
+//  AquaSense IoT - ESP32  |  v3.0  (protocolo PT — dashboard-app)
 //  Monitoramento de qualidade da agua + controle de bomba do coletor solar
-//  IBMEC Sao Paulo - Sistemas Embarcados
+//  IBMEC Sao Paulo / Invivio Tecnologia Ltda
+//  Prof. Marcel Stefan Wagner, PhD
 // ----------------------------------------------------------------------------
-//  GOTCHA #1 (causa mais comum de "MQTT nao funciona"):
-//    Com USAR_TLS 0 voce publica no broker PUBLICO (broker.hivemq.com),
-//    NAO no seu cluster HiveMQ Cloud. Se voce abre o painel do SEU cluster
-//    esperando ver as mensagens, nao vai aparecer nada. Para usar o seu
-//    cluster: USAR_TLS 1 + host real + credenciais do Access Management.
-//  GOTCHA #2 (hardware real): ESP32 so fala Wi-Fi 2.4 GHz. Rede 5G nao conecta.
-//  GOTCHA #3: as leituras sao publicadas com retain=true e log OK/FALHOU,
-//    entao um cliente que assinar depois tambem recebe o ultimo valor.
+//  Este firmware fala o MESMO protocolo do dashboard React em /dashboard-app:
+//    - Namespace MQTT: "aquasense-ibmec-pt"
+//    - Topico consolidado (fonte de verdade da UI): ".../dados" (JSON flat)
+//    - Topicos granulares informativos + saude + estado de controle
+//    - Recebe comandos do dashboard: ".../controle/modo" e ".../dosagem/comando"
+//
+//  GOTCHA #1 - Broker: o dashboard conecta em broker.hivemq.com:8884 (WSS).
+//    Para os dois conversarem, o ESP32 precisa estar no MESMO broker.
+//    USAR_TLS 0 => broker.hivemq.com:1883 (publico, casa com o dashboard).
+//    USAR_TLS 1 => HiveMQ Cloud (TLS 8883); neste caso ajuste tambem o
+//    MQTT_URL do dashboard (src/providers/MqttProvider.tsx) para o seu cluster.
+//  GOTCHA #2 - ESP32 so fala Wi-Fi 2.4 GHz. Rede 5G nao conecta.
+//  GOTCHA #3 - ".../dados" e ".../sistema/status" sao publicados com
+//    retain=true: quem assinar depois recebe o ultimo estado imediatamente.
+// ----------------------------------------------------------------------------
+//  Mapeamento de pinos:
+//     D4  -> LED 1   (pH fora da faixa)
+//     D5  -> LED Wi-Fi (status da conexao)
+//     D18 -> LED 2   (cloro/ORP fora da faixa)
+//     D19 -> LED 3   (alcalinidade fora da faixa)
+//     D21 -> LCD SDA (I2C)
+//     D22 -> LCD SCL (I2C)
+//     D26 -> Rele    (bomba do coletor solar)
 // ============================================================================
 
-#define USAR_TLS 1   // 0 = broker publico de teste (broker.hivemq.com, sem TLS/login) | 1 = HiveMQ Cloud (TLS porta 8883)
-
-/*
- * ============================================================================
- *  AquaSense IoT  -  Firmware otimizado v2.4.1
- *  IBMEC São Paulo / Invivio Tecnologia Ltda
- *  Sistemas Embarcados - Prof. Marcel Stefan Wagner, PhD
- *  Grupo 1: Okaru, João Perestrelo, Roan
- * ============================================================================
- *
- *  Otimizações desta versão:
- *    [C-1] LEDs voltam a respeitar faixas dos sensores
- *    [C-2] Seleção MQTT entre broker público HiveMQ e HiveMQ Cloud via USAR_TLS
- *    [C-5] Diagnóstico de Wi-Fi/MQTT e confirmação de publish por tópico
- *    [C-3] Reconexão MQTT 100% não-bloqueante (state machine + backoff)
- *    [C-4] mqtt.loop() guardado por WiFi.status()
- *    [G-1] LCD inicializado no endereço I2C detectado
- *    [G-3] clientId usa todos os 48 bits do MAC
- *    [G-4] setServer chamado uma única vez no setup
- *    [G-5] WiFi.setAutoReconnect(true) + persistent(false) explícitos
- *    [M-1] snprintf + char[] no LCD/MQTT (zero String, zero heap em mensagens)
- *    [M-2] LCD sem flicker (padding em vez de clear)
- *    [M-3] LED Wi-Fi movido para D5 (não-strapping)
- *    [M-4] Literais float (sufixo f) — evita promoção para double
- *
- *  Mapeamento de pinos:
- *     D4  -> LED 1   (pH fora da faixa)
- *     D5  -> LED Wi-Fi (status da conexão)
- *     D18 -> LED 2   (ORP fora da faixa)
- *     D19 -> LED 3   (condutividade fora da faixa)
- *     D21 -> LCD SDA (I2C)
- *     D22 -> LCD SCL (I2C)
- *     D26 -> Relé    (bomba do coletor solar)
- * ============================================================================
- */
+#define USAR_TLS 0   // 0 = broker publico (broker.hivemq.com, casa com o dashboard) | 1 = HiveMQ Cloud TLS 8883
 
 #include <WiFi.h>
 #if USAR_TLS
@@ -64,8 +46,8 @@
 // ============================================================================
 #define PIN_LED_PH     4
 #define PIN_LED_WIFI   5
-#define PIN_LED_ORP    18
-#define PIN_LED_COND   19
+#define PIN_LED_CLORO  18
+#define PIN_LED_ALC    19
 #define PIN_RELE       26
 #define PIN_SDA        21
 #define PIN_SCL        22
@@ -81,7 +63,7 @@
 #endif
 
 // ============================================================================
-//  LCD I2C 16x2 — endereço detectado no boot
+//  LCD I2C 16x2 — endereco detectado no boot
 // ============================================================================
 LiquidCrystal_I2C* lcd = nullptr;
 bool lcdOK = false;
@@ -97,30 +79,38 @@ const char* WIFI_PASS = "SUA_SENHA_WIFI";
 //  MQTT / HiveMQ
 // ============================================================================
 #if USAR_TLS
-  // HiveMQ Cloud: preencha o host real do cluster e as credenciais.
   const char* MQTT_HOST = "5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud";
   const int   MQTT_PORT = 8883;
   const char* MQTT_USER = "ProjetoIoT";
   const char* MQTT_PASS = "IoT12345678";
 #else
-  // Broker público de teste: sem TLS e sem autenticação.
+  // Broker publico de teste: sem TLS e sem autenticacao. Mesmo broker do dashboard.
   const char* MQTT_HOST = "broker.hivemq.com";
   const int   MQTT_PORT = 1883;
   const char* MQTT_USER = "";
   const char* MQTT_PASS = "";
 #endif
 
-// Prefixo único para reduzir colisão com outros usuários do broker público.
-const char* TOPIC_PH             = "aquasense-ibmec/agua/ph";
-const char* TOPIC_ORP            = "aquasense-ibmec/agua/orp";
-const char* TOPIC_COND           = "aquasense-ibmec/agua/condutividade";
-const char* TOPIC_T_PISC         = "aquasense-ibmec/temperatura/piscina";
-const char* TOPIC_T_SOLAR        = "aquasense-ibmec/temperatura/coletor";
-const char* TOPIC_BOMBA          = "aquasense-ibmec/bomba/estado";
-const char* TOPIC_STATUS         = "aquasense-ibmec/sistema/status";
-const char* TOPIC_ALEXA_SNAPSHOT = "aquasense-ibmec/alexa/snapshot";
-const char* TOPIC_ALEXA_RESPOSTA = "aquasense-ibmec/alexa/resposta";
-const char* TOPIC_CMD_DOSAGEM    = "aquasense-ibmec/dosagem/comando";
+// ----------------------------------------------------------------------------
+//  TOPICOS — namespace PT, identico ao src/lib/mqttTopics.ts do dashboard.
+// ----------------------------------------------------------------------------
+#define NS "aquasense-ibmec-pt"
+
+const char* TOPIC_DADOS          = NS "/dados";                 // consolidado (fonte de verdade)
+const char* TOPIC_PISC_PH        = NS "/piscina/ph";
+const char* TOPIC_PISC_CLORO     = NS "/piscina/cloro";
+const char* TOPIC_PISC_ALC       = NS "/piscina/alcalinidade";
+const char* TOPIC_PISC_TEMP      = NS "/piscina/temperatura";
+const char* TOPIC_COLE_TEMP      = NS "/coletor/temperatura";
+const char* TOPIC_COLE_BOMBA     = NS "/coletor/bomba";
+const char* TOPIC_SIS_ALERTAS    = NS "/sistema/alertas";
+const char* TOPIC_SIS_STATUS     = NS "/sistema/status";        // LWT online/offline (retain)
+const char* TOPIC_SIS_SAUDE      = NS "/sistema/saude";         // telemetria 60s
+const char* TOPIC_CTRL_ESTADO    = NS "/controle/estado";       // retain
+const char* TOPIC_DOS_EVENTO     = NS "/dosagem/evento";
+// Recebidos do dashboard:
+const char* TOPIC_CTRL_MODO_IN   = NS "/controle/modo";
+const char* TOPIC_DOS_CMD_IN     = NS "/dosagem/comando";
 
 #if USAR_TLS
   WiFiClientSecure wifiClient;
@@ -133,15 +123,20 @@ bool mqttHabilitado = false;
 char clientId[24];
 
 // ============================================================================
-//  PARÂMETROS DE OPERAÇÃO
+//  PARAMETROS DE OPERACAO
 // ============================================================================
 const unsigned long INTERVALO_AQUISICAO_MS = 5000;
+const unsigned long INTERVALO_SAUDE_MS     = 60000UL;
 const float         DELTA_LIGAR_C          = 5.0f;
 const float         DELTA_DESLIGAR_C       = 1.0f;
 const unsigned long ANTI_CYCLING_MS        = 60000UL;
-const float PH_MIN   = 7.2f,   PH_MAX   = 7.6f;
-const float ORP_MIN  = 650.0f, ORP_MAX  = 750.0f;
-const float COND_MIN = 800.0f, COND_MAX = 1500.0f;
+const unsigned long DOSE_DURACAO_MS        = 8000UL;   // duracao simulada de uma dosagem
+
+// Faixas ideais (ABNT NBR 10818) — mesmas do dashboard (thresholds.ts).
+const float PH_MIN   = 7.2f,  PH_MAX   = 7.6f;
+const float CLORO_MIN = 1.0f, CLORO_MAX = 3.0f;
+const float ALC_MIN  = 80.0f, ALC_MAX  = 120.0f;
+
 const unsigned long WIFI_RETRY_MS = 10000UL;
 const unsigned long MQTT_RETRY_MS = 5000UL;
 
@@ -149,26 +144,39 @@ const unsigned long MQTT_RETRY_MS = 5000UL;
 //  ESTADO GLOBAL
 // ============================================================================
 unsigned long ultimaAquisicao    = 0;
+unsigned long ultimaSaude        = 0;
 unsigned long ultimaMudancaBomba = 0;
 unsigned long proxRetryWiFi      = 0;
 unsigned long proxRetryMQTT      = 0;
+unsigned long fimDosagem         = 0;        // 0 = sem dosagem em andamento
+uint32_t      ciclo              = 0;
 bool          bombaLigada        = false;
 bool          primeiroCiclo      = true;
 
+// Leituras atuais.
 static float g_ph     = 7.4f;
 static float g_orp    = 700.0f;
-static float g_cond   = 1100.0f;
-static float g_tPisc  = 24.0f;
-static float g_tSolar = 28.0f;
+static float g_cloro  = 2.0f;
+static float g_alc    = 100.0f;
+static float g_tPisc  = 28.0f;
+static float g_tSolar = 30.0f;
+static float g_umid   = 65.0f;
+
+// Estado de controle (espelha controle/estado).
+char g_modo[12]           = "automatico";   // "automatico" | "manual" | "parada"
+bool g_paradaEmergencia   = false;
+char g_doseEmAndamento[8] = "";              // "" = null | "cloro" | "acido" | "base"
 
 // ============================================================================
-//  SIMULAÇÃO DOS SENSORES (literais float — sem promoção a double)
+//  SIMULACAO DOS SENSORES (literais float — sem promocao a double)
 // ============================================================================
-float lerPH()            { return 7.4f    + sinf(millis() / 30000.0f) * 0.4f;   }
-float lerORP()           { return 700.0f  + sinf(millis() / 25000.0f) * 60.0f;  }
-float lerCondutividade() { return 1100.0f + sinf(millis() / 40000.0f) * 300.0f; }
-float lerTempPiscina()   { return 24.0f   + sinf(millis() / 60000.0f) * 2.0f;   }
-float lerTempSolar()     { return 28.0f   + sinf(millis() / 45000.0f) * 8.0f;   }
+float lerPH()            { return 7.4f   + sinf(millis() / 30000.0f) * 0.2f;   }  // 7.2 – 7.6
+float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f;  }  // 640 – 760 mV
+float lerCloro()         { return 2.0f   + sinf(millis() / 35000.0f) * 0.9f;   }  // 1.1 – 2.9 ppm
+float lerAlcalinidade()  { return 100.0f + sinf(millis() / 40000.0f) * 18.0f;  }  // 82 – 118 ppm
+float lerTempPiscina()   { return 28.0f  + sinf(millis() / 60000.0f) * 2.0f;   }
+float lerTempSolar()     { return 30.0f  + sinf(millis() / 45000.0f) * 9.0f;   }
+float lerUmidade()       { return 65.0f  + sinf(millis() / 50000.0f) * 10.0f;  }
 
 inline bool foraDaFaixa(float v, float lo, float hi) {
   return (v < lo) || (v > hi);
@@ -213,6 +221,7 @@ static void logPublish(const char* topico, bool ok) {
   Serial.println(ok ? F("OK") : F("FALHOU"));
 }
 
+// Extrai o valor string de uma chave JSON simples ("chave":"valor").
 static bool extrairStringJSON(const char* json, const char* chave, char* out, size_t maxLen) {
   char busca[48];
   snprintf(busca, sizeof(busca) - 1, "\"%s\":", chave);
@@ -223,121 +232,212 @@ static bool extrairStringJSON(const char* json, const char* chave, char* out, si
   while (*p == ' ' || *p == '\t') p++;
   if (*p != '"') return false;
   p++;
-
   size_t i = 0;
   while (*p && *p != '"' && i < maxLen - 1) out[i++] = *p++;
   out[i] = '\0';
   return true;
 }
 
-static void buildAlertas(char* buf, size_t len) {
-  if (len < 3) return;
-
+// ----------------------------------------------------------------------------
+//  ALERTAS — array JSON de strings (PT), mesmas labels que a UI exibe.
+// ----------------------------------------------------------------------------
+static int buildAlertas(char* buf, size_t len) {
   size_t pos = 0;
+  int n = 0;
   buf[pos++] = '[';
   buf[pos]   = '\0';
-  bool primeiro = true;
 
   auto append = [&](const char* s) {
-    size_t disponivel = len - pos - 1;
-    size_t n = strlen(s);
-    if (n > disponivel) n = disponivel;
-    memcpy(buf + pos, s, n);
-    pos += n;
+    size_t disp = len - pos - 1;
+    size_t k = strlen(s);
+    if (k > disp) k = disp;
+    memcpy(buf + pos, s, k);
+    pos += k;
     buf[pos] = '\0';
   };
 
   if (foraDaFaixa(g_ph, PH_MIN, PH_MAX)) {
-    if (!primeiro) append(",");
-    append("\"pH\"");
-    primeiro = false;
+    if (n) append(",");
+    append("\"pH fora da faixa\"");
+    n++;
   }
-  if (foraDaFaixa(g_orp, ORP_MIN, ORP_MAX)) {
-    if (!primeiro) append(",");
-    append("\"ORP\"");
-    primeiro = false;
+  if (foraDaFaixa(g_cloro, CLORO_MIN, CLORO_MAX)) {
+    if (n) append(",");
+    append("\"Cloro fora da faixa\"");
+    n++;
   }
-  if (foraDaFaixa(g_cond, COND_MIN, COND_MAX)) {
-    if (!primeiro) append(",");
-    append("\"condutividade\"");
+  if (foraDaFaixa(g_alc, ALC_MIN, ALC_MAX)) {
+    if (n) append(",");
+    append("\"Alcalinidade fora da faixa\"");
+    n++;
   }
 
   append("]");
+  return n;
 }
 
-static void publicarSnapshotAlexa() {
+// ----------------------------------------------------------------------------
+//  PUBLICACOES PT
+// ----------------------------------------------------------------------------
+
+// Topico consolidado ".../dados" — fonte de verdade do dashboard.
+static void publicarDados() {
   if (!mqtt.connected()) return;
 
-  char alertas[48];
+  char alertas[160];
   buildAlertas(alertas, sizeof(alertas));
 
-  char payload[400];
+  const float deltaT = g_tSolar - g_tPisc;
+
+  // dose_em_andamento: null quando vazio, senao string entre aspas.
+  char dose[16];
+  if (g_doseEmAndamento[0] == '\0') {
+    snprintf(dose, sizeof(dose), "null");
+  } else {
+    snprintf(dose, sizeof(dose), "\"%s\"", g_doseEmAndamento);
+  }
+
+  char payload[420];
   snprintf(payload, sizeof(payload),
-           "{\"ph\":%.2f,\"orp_mv\":%.0f,\"cond_us\":%.0f,"
-           "\"temp_piscina\":%.1f,\"temp_solar\":%.1f,"
-           "\"bomba\":\"%s\",\"alertas\":%s,\"timestamp_ms\":%lu}",
-           g_ph, g_orp, g_cond, g_tPisc, g_tSolar,
-           bombaLigada ? "ON" : "OFF",
-           alertas,
-           millis());
-  bool ok = mqtt.publish(TOPIC_ALEXA_SNAPSHOT, (const uint8_t*)payload, strlen(payload), true);
-  logPublish(TOPIC_ALEXA_SNAPSHOT, ok);
+    "{\"projeto\":\"AquaSense IoT\",\"ciclo\":%lu,"
+    "\"ph\":%.2f,\"orp_mv\":%.1f,\"cloro\":%.2f,\"alcalinidade\":%.1f,"
+    "\"temp_piscina\":%.1f,\"temp_coletor\":%.1f,\"delta_t\":%.1f,\"umidade\":%.1f,"
+    "\"bomba\":\"%s\",\"alertas\":%s,"
+    "\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s}",
+    (unsigned long)ciclo,
+    g_ph, g_orp, g_cloro, g_alc,
+    g_tPisc, g_tSolar, deltaT, g_umid,
+    bombaLigada ? "LIGADA" : "DESLIGADA", alertas,
+    g_modo, g_paradaEmergencia ? "true" : "false", dose);
+
+  bool ok = mqtt.publish(TOPIC_DADOS, (const uint8_t*)payload, strlen(payload), true);
+  logPublish(TOPIC_DADOS, ok);
 }
 
+// Topicos granulares (informativos no log do dashboard).
+static void publicarFloat(const char* topico, float valor, uint8_t casas) {
+  if (!mqtt.connected()) return;
+  char buf[16];
+  dtostrf(valor, 1, casas, buf);
+  mqtt.publish(topico, buf, true);
+}
+
+static void publicarGranulares() {
+  publicarFloat(TOPIC_PISC_PH,   g_ph,    2);
+  publicarFloat(TOPIC_PISC_CLORO,g_cloro, 2);
+  publicarFloat(TOPIC_PISC_ALC,  g_alc,   1);
+  publicarFloat(TOPIC_PISC_TEMP, g_tPisc, 1);
+  publicarFloat(TOPIC_COLE_TEMP, g_tSolar,1);
+  if (mqtt.connected()) {
+    mqtt.publish(TOPIC_COLE_BOMBA, bombaLigada ? "LIGADA" : "DESLIGADA", true);
+    char alertas[160];
+    buildAlertas(alertas, sizeof(alertas));
+    mqtt.publish(TOPIC_SIS_ALERTAS, alertas, true);
+  }
+}
+
+// Estado de controle (retain) — chega imediato apos subscribe do dashboard.
+static void publicarControleEstado() {
+  if (!mqtt.connected()) return;
+  char dose[16];
+  if (g_doseEmAndamento[0] == '\0') snprintf(dose, sizeof(dose), "null");
+  else snprintf(dose, sizeof(dose), "\"%s\"", g_doseEmAndamento);
+
+  char payload[128];
+  snprintf(payload, sizeof(payload),
+    "{\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s}",
+    g_modo, g_paradaEmergencia ? "true" : "false", dose);
+  logPublish(TOPIC_CTRL_ESTADO, mqtt.publish(TOPIC_CTRL_ESTADO, payload, true));
+}
+
+// Telemetria tecnica (60s).
+static void publicarSaude() {
+  if (!mqtt.connected()) return;
+  char payload[200];
+  long rssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
+  snprintf(payload, sizeof(payload),
+    "{\"tempo_ativo_s\":%lu,\"heap_livre_kb\":%lu,\"rssi_wifi_dbm\":%ld,"
+    "\"erros_dht\":0,\"erros_ds\":0,\"falhas_mqtt\":0}",
+    (unsigned long)(millis() / 1000UL),
+    (unsigned long)(ESP.getFreeHeap() / 1024UL),
+    rssi);
+  logPublish(TOPIC_SIS_SAUDE, mqtt.publish(TOPIC_SIS_SAUDE, payload, true));
+}
+
+// Evento de dosagem (iniciada / concluida / bloqueada).
+static void publicarEventoDosagem(const char* parametro, const char* evento,
+                                  const char* motivo, const char* fonte) {
+  if (!mqtt.connected()) return;
+  char payload[200];
+  if (motivo && motivo[0]) {
+    snprintf(payload, sizeof(payload),
+      "{\"parametro\":\"%s\",\"evento\":\"%s\",\"motivo\":\"%s\",\"fonte\":\"%s\"}",
+      parametro, evento, motivo, fonte);
+  } else {
+    snprintf(payload, sizeof(payload),
+      "{\"parametro\":\"%s\",\"evento\":\"%s\",\"fonte\":\"%s\"}",
+      parametro, evento, fonte);
+  }
+  logPublish(TOPIC_DOS_EVENTO, mqtt.publish(TOPIC_DOS_EVENTO, payload));
+}
+
+// ----------------------------------------------------------------------------
+//  CALLBACK — comandos vindos do dashboard.
+// ----------------------------------------------------------------------------
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0 || length > 399) return;
-
   char msg[400];
   memcpy(msg, payload, length);
   msg[length] = '\0';
 
-  if (strcmp(topic, TOPIC_CMD_DOSAGEM) != 0) return;
-
-  char parametro[32] = "";
-  char origem[32]    = "";
-  char comandoId[72] = "";
-  extrairStringJSON(msg, "parametro",  parametro, sizeof(parametro));
-  extrairStringJSON(msg, "origem",     origem,    sizeof(origem));
-  extrairStringJSON(msg, "comando_id", comandoId, sizeof(comandoId));
-
-  if (strlen(comandoId) == 0) return;
-
-  const char* resultado;
-  const char* motivo;
-  if (strcmp(parametro, "cloro") == 0) {
-    resultado = "iniciada";
-    motivo = "dosagem de cloro simulada";
-  } else if (strcmp(parametro, "acido") == 0) {
-    resultado = "iniciada";
-    motivo = "dosagem de acido simulada";
-  } else if (strcmp(parametro, "base") == 0) {
-    resultado = "iniciada";
-    motivo = "dosagem de base simulada";
-  } else {
-    resultado = "bloqueada";
-    motivo = "parametro invalido";
+  // controle/modo: {"modo":"automatico"|"manual"|"parada"}
+  if (strcmp(topic, TOPIC_CTRL_MODO_IN) == 0) {
+    char modo[12] = "";
+    if (!extrairStringJSON(msg, "modo", modo, sizeof(modo))) return;
+    if (strcmp(modo, "automatico") != 0 &&
+        strcmp(modo, "manual") != 0 &&
+        strcmp(modo, "parada") != 0) return;
+    snprintf(g_modo, sizeof(g_modo), "%s", modo);
+    g_paradaEmergencia = (strcmp(modo, "parada") == 0);
+    Serial.print(F("[CTRL] modo -> ")); Serial.println(g_modo);
+    publicarControleEstado();
+    return;
   }
 
-  char resp[300];
-  snprintf(resp, sizeof(resp),
-           "{\"comando_id\":\"%s\",\"resultado\":\"%s\","
-           "\"parametro\":\"%s\",\"motivo\":\"%s\",\"timestamp_ms\":%lu}",
-           comandoId, resultado, parametro, motivo, millis());
-  bool okPub = mqtt.publish(TOPIC_ALEXA_RESPOSTA, resp);
-  logPublish(TOPIC_ALEXA_RESPOSTA, okPub);
+  // dosagem/comando: {"parametro":"cloro"|"acido"|"base"}
+  if (strcmp(topic, TOPIC_DOS_CMD_IN) == 0) {
+    char param[8] = "";
+    if (!extrairStringJSON(msg, "parametro", param, sizeof(param))) return;
+    if (strcmp(param, "cloro") != 0 &&
+        strcmp(param, "acido") != 0 &&
+        strcmp(param, "base") != 0) return;
 
-  Serial.print(F("[ALEXA] "));
-  Serial.print(origem);
-  Serial.print(F(" -> "));
-  Serial.print(parametro);
-  Serial.print(F(" -> "));
-  Serial.println(resultado);
+    // Camadas de seguranca minimas: E-Stop e dose ja em andamento.
+    if (g_paradaEmergencia) {
+      publicarEventoDosagem(param, "bloqueada", "parada de emergencia ativa", "manual");
+      return;
+    }
+    if (g_doseEmAndamento[0] != '\0') {
+      publicarEventoDosagem(param, "bloqueada", "outra dose em andamento", "manual");
+      return;
+    }
+
+    snprintf(g_doseEmAndamento, sizeof(g_doseEmAndamento), "%s", param);
+    fimDosagem = millis() + DOSE_DURACAO_MS;
+    publicarEventoDosagem(param, "iniciada", "comando do operador", "manual");
+    publicarControleEstado();
+    Serial.print(F("[DOSE] iniciada: ")); Serial.println(param);
+    return;
+  }
 }
 
-void atualizarLEDs(float ph, float orp, float cond) {
-  digitalWrite(PIN_LED_PH,   foraDaFaixa(ph,   PH_MIN,   PH_MAX)   ? HIGH : LOW);
-  digitalWrite(PIN_LED_ORP,  foraDaFaixa(orp,  ORP_MIN,  ORP_MAX)  ? HIGH : LOW);
-  digitalWrite(PIN_LED_COND, foraDaFaixa(cond, COND_MIN, COND_MAX) ? HIGH : LOW);
+// ----------------------------------------------------------------------------
+//  LEDs / BOMBA
+// ----------------------------------------------------------------------------
+void atualizarLEDs() {
+  digitalWrite(PIN_LED_PH,    foraDaFaixa(g_ph,    PH_MIN,    PH_MAX)    ? HIGH : LOW);
+  digitalWrite(PIN_LED_CLORO, foraDaFaixa(g_cloro, CLORO_MIN, CLORO_MAX) ? HIGH : LOW);
+  digitalWrite(PIN_LED_ALC,   foraDaFaixa(g_alc,   ALC_MIN,   ALC_MAX)   ? HIGH : LOW);
 }
 
 void controlarBomba(float tPiscina, float tSolar) {
@@ -361,9 +461,11 @@ void controlarBomba(float tPiscina, float tSolar) {
   }
 }
 
+// ----------------------------------------------------------------------------
+//  LCD
+// ----------------------------------------------------------------------------
 void escreverLinhaLCD(uint8_t linha, const char* texto) {
   if (!lcdOK || lcd == nullptr) return;
-
   char buf[17];
   size_t n = strnlen(texto, 16);
   memcpy(buf, texto, n);
@@ -373,21 +475,19 @@ void escreverLinhaLCD(uint8_t linha, const char* texto) {
   lcd->print(buf);
 }
 
-void atualizarLCD(float ph, float orp, float cond, float tPisc, float tSolar) {
+void atualizarLCD() {
   if (!lcdOK || lcd == nullptr) return;
-
   static bool tela = false;
   tela = !tela;
 
   char l1[17], l2[17];
   if (!tela) {
-    snprintf(l1, sizeof(l1), "pH%.2f ORP%d", ph, (int)orp);
-    snprintf(l2, sizeof(l2), "EC%d B:%s", (int)cond, bombaLigada ? "ON" : "OFF");
+    snprintf(l1, sizeof(l1), "pH%.2f Cl%.1f", g_ph, g_cloro);
+    snprintf(l2, sizeof(l2), "Alc%d B:%s", (int)g_alc, bombaLigada ? "ON" : "OFF");
   } else {
-    snprintf(l1, sizeof(l1), "Tp:%.1f%cC", tPisc, (char)223);
-    snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", tSolar, (char)223, bombaLigada ? "ON" : "OFF");
+    snprintf(l1, sizeof(l1), "Tp:%.1f%cC", g_tPisc, (char)223);
+    snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", g_tSolar, (char)223, bombaLigada ? "ON" : "OFF");
   }
-
   escreverLinhaLCD(0, l1);
   escreverLinhaLCD(1, l2);
 }
@@ -395,7 +495,6 @@ void atualizarLCD(float ph, float orp, float cond, float tPisc, float tSolar) {
 uint8_t escanearI2C() {
   Serial.println(F("[I2C] escaneando..."));
   uint8_t encontrado = 0;
-
   for (uint8_t addr = 1; addr < 127; addr++) {
     Wire.beginTransmission(addr);
     if (Wire.endTransmission() == 0) {
@@ -404,7 +503,6 @@ uint8_t escanearI2C() {
       if (encontrado == 0) encontrado = addr;
     }
   }
-
   if (encontrado == 0) Serial.println(F("      nenhum dispositivo"));
   return encontrado;
 }
@@ -412,21 +510,15 @@ uint8_t escanearI2C() {
 bool inicializarLCD() {
   const uint8_t enderecos[] = { 0x27, 0x3F, 0x20, 0x38, 0x26, 0x3E };
   uint8_t addr = 0;
-
   for (uint8_t a : enderecos) {
     Wire.beginTransmission(a);
-    if (Wire.endTransmission() == 0) {
-      addr = a;
-      break;
-    }
+    if (Wire.endTransmission() == 0) { addr = a; break; }
   }
-
   if (addr == 0) addr = escanearI2C();
   if (addr == 0) {
     Serial.println(F("[LCD] FALHOU - verifique SDA=D21 SCL=D22 GND comum"));
     return false;
   }
-
   enderecoLCD = addr;
   Serial.print(F("[LCD] endereco 0x"));
   Serial.println(addr, HEX);
@@ -446,6 +538,9 @@ bool inicializarLCD() {
   return true;
 }
 
+// ----------------------------------------------------------------------------
+//  WI-FI
+// ----------------------------------------------------------------------------
 void iniciarWiFi() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
@@ -472,7 +567,6 @@ void iniciarWiFi() {
     Serial.print(F("[WiFi] FALHOU -> "));
     Serial.println(wifiStatusToStr(WiFi.status()));
     Serial.println(F("[WiFi] dicas: use rede 2.4GHz, confira SSID/senha e sinal do AP."));
-    Serial.println(F("[WiFi] (auto-reconnect ativo - vou seguir tentando)"));
   }
 }
 
@@ -481,11 +575,9 @@ void gerenciarWiFi() {
     digitalWrite(PIN_LED_WIFI, HIGH);
     return;
   }
-
   digitalWrite(PIN_LED_WIFI, LOW);
   const unsigned long agora = millis();
   if (agora < proxRetryWiFi) return;
-
   proxRetryWiFi = agora + WIFI_RETRY_MS;
   Serial.print(F("[WiFi] reconectando... status="));
   Serial.println(wifiStatusToStr(WiFi.status()));
@@ -493,20 +585,20 @@ void gerenciarWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
+// ----------------------------------------------------------------------------
+//  MQTT
+// ----------------------------------------------------------------------------
 void iniciarMQTT() {
   if (!mqttHabilitado) {
     Serial.println(F("[MQTT] DESABILITADO - host/credenciais sao placeholders."));
     return;
   }
-
 #if USAR_TLS
-  // Para protótipo: ignora validacao de certificado.
-  // Em producao, prefira wifiClient.setCACert(...) com a cadeia correta.
-  wifiClient.setInsecure();
+  wifiClient.setInsecure();   // prototipo; em producao use setCACert(...)
 #endif
 
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
-  mqtt.setBufferSize(512);
+  mqtt.setBufferSize(768);
   mqtt.setKeepAlive(30);
   mqtt.setSocketTimeout(10);
   mqtt.setCallback(mqttCallback);
@@ -528,11 +620,7 @@ void iniciarMQTT() {
 
 void gerenciarMQTT() {
   if (!mqttHabilitado || WiFi.status() != WL_CONNECTED) return;
-
-  if (mqtt.connected()) {
-    mqtt.loop();
-    return;
-  }
+  if (mqtt.connected()) { mqtt.loop(); return; }
 
   const unsigned long agora = millis();
   if (agora < proxRetryMQTT) return;
@@ -540,22 +628,29 @@ void gerenciarMQTT() {
 
   Serial.print(F("[MQTT] conectando a "));
   Serial.print(MQTT_HOST);
-  Serial.print(F(":"));
+  Serial.print(':');
   Serial.print(MQTT_PORT);
   Serial.print(F(" ... "));
+
   bool ok;
   if (strlen(MQTT_USER) > 0) {
-    ok = mqtt.connect(clientId, MQTT_USER, MQTT_PASS, TOPIC_STATUS, 1, true, "offline");
+    ok = mqtt.connect(clientId, MQTT_USER, MQTT_PASS, TOPIC_SIS_STATUS, 1, true, "offline");
   } else {
-    ok = mqtt.connect(clientId, TOPIC_STATUS, 1, true, "offline");
+    ok = mqtt.connect(clientId, TOPIC_SIS_STATUS, 1, true, "offline");
   }
 
   if (ok) {
     Serial.println(F("OK"));
-    logPublish(TOPIC_STATUS, mqtt.publish(TOPIC_STATUS, "online", true));
-    bool subOk = mqtt.subscribe(TOPIC_CMD_DOSAGEM);
-    Serial.print(F("[MQTT] subscribed: dosagem/comando -> "));
-    Serial.println(subOk ? F("OK") : F("FALHOU"));
+    logPublish(TOPIC_SIS_STATUS, mqtt.publish(TOPIC_SIS_STATUS, "online", true));
+    bool s1 = mqtt.subscribe(TOPIC_CTRL_MODO_IN);
+    bool s2 = mqtt.subscribe(TOPIC_DOS_CMD_IN);
+    Serial.print(F("[MQTT] subscribe controle/modo="));
+    Serial.print(s1 ? F("OK") : F("FALHOU"));
+    Serial.print(F(" dosagem/comando="));
+    Serial.println(s2 ? F("OK") : F("FALHOU"));
+    publicarControleEstado();   // retain inicial
+    publicarSaude();
+    ultimaSaude = millis();
   } else {
     int rc = mqtt.state();
     Serial.print(F("falhou rc="));
@@ -565,42 +660,36 @@ void gerenciarMQTT() {
   }
 }
 
-void publicarFloat(const char* topico, float valor) {
-  if (!mqtt.connected()) return;
-
-  char buf[16];
-  dtostrf(valor, 1, 2, buf);
-
-  // retain=true: quem assinar depois tambem ve o ultimo valor publicado.
-  bool ok = mqtt.publish(topico, buf, true);
-  logPublish(topico, ok);
-}
-
+// ----------------------------------------------------------------------------
+//  TESTE DE LEDs
+// ----------------------------------------------------------------------------
 void blinkTesteLEDs() {
-  const uint8_t leds[] = { PIN_LED_PH, PIN_LED_ORP, PIN_LED_COND };
-  for (int r = 0; r < 2; r++) {
+  const uint8_t leds[] = { PIN_LED_PH, PIN_LED_CLORO, PIN_LED_ALC };
+  for (int r = 0; r < 2; r++)
     for (int i = 0; i < 3; i++) {
       digitalWrite(leds[i], HIGH);
       delay(150);
       digitalWrite(leds[i], LOW);
     }
-  }
 }
 
+// ============================================================================
+//  SETUP
+// ============================================================================
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println(F("\n=== AquaSense IoT - boot v2.4.1 ==="));
+  Serial.println(F("\n=== AquaSense IoT - boot v3.0 (protocolo PT) ==="));
 
-  pinMode(PIN_LED_PH,   OUTPUT);
-  pinMode(PIN_LED_ORP,  OUTPUT);
-  pinMode(PIN_LED_COND, OUTPUT);
-  pinMode(PIN_LED_WIFI, OUTPUT);
-  pinMode(PIN_RELE,     OUTPUT);
-  digitalWrite(PIN_LED_PH,   LOW);
-  digitalWrite(PIN_LED_ORP,  LOW);
-  digitalWrite(PIN_LED_COND, LOW);
-  digitalWrite(PIN_LED_WIFI, LOW);
+  pinMode(PIN_LED_PH,    OUTPUT);
+  pinMode(PIN_LED_CLORO, OUTPUT);
+  pinMode(PIN_LED_ALC,   OUTPUT);
+  pinMode(PIN_LED_WIFI,  OUTPUT);
+  pinMode(PIN_RELE,      OUTPUT);
+  digitalWrite(PIN_LED_PH,    LOW);
+  digitalWrite(PIN_LED_CLORO, LOW);
+  digitalWrite(PIN_LED_ALC,   LOW);
+  digitalWrite(PIN_LED_WIFI,  LOW);
   digitalWrite(PIN_RELE, RELE_DESLIGA);
 
   Wire.begin(PIN_SDA, PIN_SCL);
@@ -614,95 +703,90 @@ void setup() {
 
   mqttHabilitado = strlen(MQTT_HOST) > 0;
 #if USAR_TLS
-  mqttHabilitado =
-      mqttHabilitado &&
-      strcmp(MQTT_HOST, "xxxxxxxxxxxx.s1.eu.hivemq.cloud") != 0 &&
-      strlen(MQTT_USER) > 0 &&
-      strlen(MQTT_PASS) > 0;
+  mqttHabilitado = mqttHabilitado && strlen(MQTT_USER) > 0 && strlen(MQTT_PASS) > 0;
 #endif
 
-  // Diagnostico de boot: mostra exatamente o destino MQTT configurado.
   Serial.println(F("---------------------------------------------"));
 #if USAR_TLS
   Serial.println(F("[MODO]   HiveMQ Cloud (TLS, porta 8883)"));
 #else
-  Serial.println(F("[MODO]   Broker PUBLICO de teste (sem TLS)"));
-  Serial.println(F("[MODO]   -> dados NAO vao para o painel do seu cluster HiveMQ Cloud."));
+  Serial.println(F("[MODO]   Broker PUBLICO (broker.hivemq.com) — casa com o dashboard"));
 #endif
   Serial.print(F("[BROKER] "));
   Serial.print(MQTT_HOST);
-  Serial.print(F(":"));
+  Serial.print(':');
   Serial.println(MQTT_PORT);
+  Serial.print(F("[NS]     "));
+  Serial.println(NS);
   Serial.print(F("[MQTT]   habilitado: "));
   Serial.println(mqttHabilitado ? F("SIM") : F("NAO"));
-
-  if (strcmp(WIFI_SSID, "SUA_REDE_WIFI") == 0) {
+  if (strcmp(WIFI_SSID, "SUA_REDE_WIFI") == 0)
     Serial.println(F("[AVISO]  WIFI_SSID ainda e placeholder - edite WIFI_SSID/WIFI_PASS."));
-  }
-#if USAR_TLS
-  if (strcmp(MQTT_USER, "seu_usuario_hivemq") == 0) {
-    Serial.println(F("[AVISO]  MQTT_USER e placeholder - use credenciais do Access Management."));
-  }
-#endif
   Serial.println(F("---------------------------------------------"));
 
   iniciarWiFi();
   iniciarMQTT();
 
-  if (lcdOK) {
-    delay(1500);
-    lcd->clear();
-  }
+  if (lcdOK) { delay(1500); lcd->clear(); }
 
   ultimaAquisicao = millis() - INTERVALO_AQUISICAO_MS;
+  ultimaSaude     = millis();
 }
 
+// ============================================================================
+//  LOOP
+// ============================================================================
 void loop() {
   gerenciarWiFi();
   gerenciarMQTT();
 
   const unsigned long agora = millis();
+
+  // Encerra dosagem simulada quando o tempo expira.
+  if (fimDosagem != 0 && agora >= fimDosagem) {
+    publicarEventoDosagem(g_doseEmAndamento, "concluida", "", "automatico");
+    Serial.print(F("[DOSE] concluida: ")); Serial.println(g_doseEmAndamento);
+    g_doseEmAndamento[0] = '\0';
+    fimDosagem = 0;
+    publicarControleEstado();
+  }
+
+  // Telemetria de saude (60s).
+  if (agora - ultimaSaude >= INTERVALO_SAUDE_MS) {
+    ultimaSaude = agora;
+    publicarSaude();
+  }
+
   if (agora - ultimaAquisicao < INTERVALO_AQUISICAO_MS) return;
   ultimaAquisicao = agora;
+  ciclo++;
 
   g_ph     = lerPH();
   g_orp    = lerORP();
-  g_cond   = lerCondutividade();
+  g_cloro  = lerCloro();
+  g_alc    = lerAlcalinidade();
   g_tPisc  = lerTempPiscina();
   g_tSolar = lerTempSolar();
+  g_umid   = lerUmidade();
 
-  atualizarLEDs(g_ph, g_orp, g_cond);
+  atualizarLEDs();
   controlarBomba(g_tPisc, g_tSolar);
-  atualizarLCD(g_ph, g_orp, g_cond, g_tPisc, g_tSolar);
+  atualizarLCD();
 
-  Serial.print(F("pH="));
-  Serial.print(g_ph, 2);
-  Serial.print(F(" ORP="));
-  Serial.print(g_orp, 0);
-  Serial.print(F(" EC="));
-  Serial.print(g_cond, 0);
-  Serial.print(F(" Tp="));
-  Serial.print(g_tPisc, 1);
-  Serial.print(F(" Ts="));
-  Serial.print(g_tSolar, 1);
-  Serial.print(F(" dT="));
-  Serial.print(g_tSolar - g_tPisc, 1);
-  Serial.print(F(" B="));
-  Serial.print(bombaLigada ? "ON" : "OFF");
-  Serial.print(F(" LCD="));
-  Serial.print(lcdOK ? "OK" : "OFF");
-  Serial.print(F(" WiFi="));
-  Serial.print(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
-  Serial.print(F(" MQTT="));
-  Serial.println(mqtt.connected() ? "OK" : "OFF");
+  Serial.print(F("c="));      Serial.print(ciclo);
+  Serial.print(F(" pH="));    Serial.print(g_ph, 2);
+  Serial.print(F(" Cl="));    Serial.print(g_cloro, 2);
+  Serial.print(F(" Alc="));   Serial.print(g_alc, 0);
+  Serial.print(F(" ORP="));   Serial.print(g_orp, 0);
+  Serial.print(F(" Tp="));    Serial.print(g_tPisc, 1);
+  Serial.print(F(" Ts="));    Serial.print(g_tSolar, 1);
+  Serial.print(F(" dT="));    Serial.print(g_tSolar - g_tPisc, 1);
+  Serial.print(F(" Um="));    Serial.print(g_umid, 0);
+  Serial.print(F(" B="));     Serial.print(bombaLigada ? "ON" : "OFF");
+  Serial.print(F(" modo="));  Serial.print(g_modo);
+  Serial.print(F(" WiFi="));  Serial.print(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
+  Serial.print(F(" MQTT="));  Serial.println(mqtt.connected() ? "OK" : "OFF");
 
-  publicarFloat(TOPIC_PH,      g_ph);
-  publicarFloat(TOPIC_ORP,     g_orp);
-  publicarFloat(TOPIC_COND,    g_cond);
-  publicarFloat(TOPIC_T_PISC,  g_tPisc);
-  publicarFloat(TOPIC_T_SOLAR, g_tSolar);
-  if (mqtt.connected()) {
-    logPublish(TOPIC_BOMBA, mqtt.publish(TOPIC_BOMBA, bombaLigada ? "ON" : "OFF", true));
-  }
-  publicarSnapshotAlexa();
+  publicarGranulares();
+  publicarDados();
 }
