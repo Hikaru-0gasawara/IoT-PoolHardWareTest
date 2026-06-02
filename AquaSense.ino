@@ -578,11 +578,11 @@ void loop() {
 
   ultimaAquisicao = agora;
 
-  g_ph     = lerPH();
-  g_orp    = lerORP();
-  g_cond   = lerCondutividade();
-  g_tPisc  = lerTempPiscina();
-  g_tSolar = lerTempSolar();
+  const float ph     = lerPH();
+  const float orp    = lerORP();
+  const float cond   = lerCondutividade();
+  const float tPisc  = lerTempPiscina();
+  const float tSolar = lerTempSolar();
 
   atualizarLEDs(ph, orp, cond);
   controlarBomba(ph, orp, cond);
