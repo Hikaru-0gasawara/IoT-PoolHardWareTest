@@ -1,0 +1,207 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "monitor da piscina",
+      "intents": [
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "ConsultarParametroIntent",
+          "slots": [
+            { "name": "parametro", "type": "PARAMETRO" }
+          ],
+          "samples": [
+            "qual o {parametro}",
+            "qual é o {parametro}",
+            "qual o {parametro} da piscina",
+            "qual o {parametro} da água",
+            "me diga o {parametro}",
+            "me diga o {parametro} da piscina",
+            "como está o {parametro}",
+            "qual o nível de {parametro}",
+            "o {parametro} está bom",
+            "{parametro}"
+          ]
+        },
+        {
+          "name": "ConsultarTemperaturaIntent",
+          "slots": [
+            { "name": "local", "type": "LOCAL_TEMP" }
+          ],
+          "samples": [
+            "qual a temperatura",
+            "qual a temperatura da {local}",
+            "qual a temperatura do {local}",
+            "temperatura da {local}",
+            "temperatura do {local}",
+            "qual a temperatura da água",
+            "quantos graus está a {local}",
+            "quantos graus tem a água",
+            "está quente a {local}"
+          ]
+        },
+        {
+          "name": "ResumoIntent",
+          "slots": [],
+          "samples": [
+            "como está a água",
+            "como está a piscina",
+            "me dê um resumo",
+            "resumo",
+            "status da piscina",
+            "como está tudo",
+            "situação da piscina",
+            "está tudo bem com a piscina"
+          ]
+        },
+        {
+          "name": "StatusBombaIntent",
+          "slots": [],
+          "samples": [
+            "a bomba está ligada",
+            "a bomba está funcionando",
+            "qual o estado da bomba",
+            "estado da bomba",
+            "como está a bomba",
+            "a bomba do coletor está ligada",
+            "o aquecimento está ligado"
+          ]
+        },
+        {
+          "name": "DosarIntent",
+          "slots": [
+            {
+              "name": "quimico",
+              "type": "QUIMICO",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": { "elicitation": "Elicit.Slot.quimico" }
+            }
+          ],
+          "samples": [
+            "dose {quimico}",
+            "dosar {quimico}",
+            "adicione {quimico}",
+            "adicionar {quimico}",
+            "iniciar dosagem de {quimico}",
+            "começar a dosagem de {quimico}",
+            "ligar a dosadora de {quimico}",
+            "coloque {quimico} na piscina"
+          ]
+        },
+        {
+          "name": "DefinirModoIntent",
+          "slots": [
+            {
+              "name": "modo",
+              "type": "MODO",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": { "elicitation": "Elicit.Slot.modo" }
+            }
+          ],
+          "samples": [
+            "mude para modo {modo}",
+            "mudar para o modo {modo}",
+            "ativar modo {modo}",
+            "ative o modo {modo}",
+            "colocar em modo {modo}",
+            "modo {modo}",
+            "ativar parada de emergência",
+            "parada de emergência",
+            "parar tudo"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "PARAMETRO",
+          "values": [
+            { "id": "ph", "name": { "value": "pH", "synonyms": ["ph", "potencial hidrogeniônico", "acidez", "ph da água"] } },
+            { "id": "cloro", "name": { "value": "cloro", "synonyms": ["cloro livre", "cloração", "nível de cloro"] } },
+            { "id": "alcalinidade", "name": { "value": "alcalinidade", "synonyms": ["alcalino", "alcalinidade total"] } },
+            { "id": "orp", "name": { "value": "ORP", "synonyms": ["oxirredução", "potencial de oxirredução", "redox"] } },
+            { "id": "umidade", "name": { "value": "umidade", "synonyms": ["umidade do ar", "umidade relativa"] } }
+          ]
+        },
+        {
+          "name": "LOCAL_TEMP",
+          "values": [
+            { "id": "piscina", "name": { "value": "piscina", "synonyms": ["água", "água da piscina", "da piscina"] } },
+            { "id": "coletor", "name": { "value": "coletor", "synonyms": ["coletor solar", "solar", "placa solar", "do coletor"] } }
+          ]
+        },
+        {
+          "name": "QUIMICO",
+          "values": [
+            { "id": "cloro", "name": { "value": "cloro", "synonyms": ["cloração", "hipoclorito"] } },
+            { "id": "acido", "name": { "value": "ácido", "synonyms": ["acido", "ácido muriático", "redutor de ph"] } },
+            { "id": "base", "name": { "value": "base", "synonyms": ["barrilha", "elevador de ph", "soda"] } }
+          ]
+        },
+        {
+          "name": "MODO",
+          "values": [
+            { "id": "automatico", "name": { "value": "automático", "synonyms": ["automatico", "auto", "autônomo"] } },
+            { "id": "manual", "name": { "value": "manual", "synonyms": ["manualmente"] } },
+            { "id": "parada", "name": { "value": "parada", "synonyms": ["parada de emergência", "emergência", "parar", "parado", "estop", "desligar tudo"] } }
+          ]
+        }
+      ]
+    },
+    "dialog": {
+      "intents": [
+        {
+          "name": "DosarIntent",
+          "confirmationRequired": true,
+          "prompts": { "confirmation": "Confirm.Intent.DosarIntent" },
+          "slots": [
+            {
+              "name": "quimico",
+              "type": "QUIMICO",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": { "elicitation": "Elicit.Slot.quimico" }
+            }
+          ]
+        },
+        {
+          "name": "DefinirModoIntent",
+          "confirmationRequired": false,
+          "slots": [
+            {
+              "name": "modo",
+              "type": "MODO",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": { "elicitation": "Elicit.Slot.modo" }
+            }
+          ]
+        }
+      ]
+    },
+    "prompts": [
+      {
+        "id": "Confirm.Intent.DosarIntent",
+        "variations": [
+          { "type": "PlainText", "value": "Você quer mesmo iniciar a dosagem de {quimico}?" }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.quimico",
+        "variations": [
+          { "type": "PlainText", "value": "Qual produto: cloro, ácido ou base?" }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.modo",
+        "variations": [
+          { "type": "PlainText", "value": "Qual modo: automático, manual ou parada de emergência?" }
+        ]
+      }
+    ]
+  }
+}

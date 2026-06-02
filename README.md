@@ -315,6 +315,9 @@ dashboard-app/                             ← dashboard web oficial (TanStack S
   package.json
 dashboard/
   index.html                              ← dashboard single-file (sem build, namespace antigo)
+alexa/                                     ← skill Alexa pt-BR (consulta + comandos via MQTT)
+  skill-package/                           ← manifesto + modelo de interação
+  lambda/                                  ← handler Node.js (ask-sdk-core) + ponte MQTT
 ferramentas/
   ApagarMemoria/
     ApagarMemoria.ino                      ← utilitário para apagar NVS + credenciais WiFi

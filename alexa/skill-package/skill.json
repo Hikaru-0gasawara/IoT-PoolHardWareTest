@@ -1,0 +1,28 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "pt-BR": {
+          "name": "Monitor da Piscina AquaSense",
+          "summary": "Monitore a qualidade da água e controle a bomba e a dosagem da piscina por voz.",
+          "description": "Skill do projeto AquaSense IoT (IBMEC São Paulo / Invivio Tecnologia). Consulte por voz o pH, cloro, alcalinidade, ORP, umidade e as temperaturas da piscina e do coletor solar, saiba se a bomba do aquecimento solar está ligada, e envie comandos para dosar cloro, ácido ou base e mudar o modo de operação. A skill conversa com o ESP32 através do broker MQTT.",
+          "examplePhrases": [
+            "Alexa, abrir monitor da piscina",
+            "Alexa, pergunte ao monitor da piscina qual o pH",
+            "Alexa, peça ao monitor da piscina para dosar cloro"
+          ],
+          "keywords": ["piscina", "iot", "aquasense", "água", "automação", "esp32"]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["BR"],
+      "testingInstructions": "Requer um ESP32 publicando em aquasense-ibmec-pt/dados no broker configurado (padrão broker.hivemq.com). Sem o dispositivo online, as consultas respondem que não há conexão.",
+      "category": "SMART_HOME"
+    },
+    "apis": {
+      "custom": {}
+    },
+    "permissions": []
+  }
+}

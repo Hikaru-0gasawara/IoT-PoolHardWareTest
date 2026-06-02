@@ -1,0 +1,13 @@
+{
+  "name": "aquasense-alexa",
+  "version": "1.0.0",
+  "description": "Skill Alexa (pt-BR) do AquaSense IoT — consulta telemetria e envia comandos via MQTT.",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ask-sdk-core": "^2.14.0",
+    "mqtt": "^5.10.1"
+  }
+}
