@@ -90,9 +90,6 @@ char clientId[32];
 
 const unsigned long INTERVALO_AQUISICAO_MS = 5000;
 
-const float DELTA_LIGAR_C    = 5.0f;
-const float DELTA_DESLIGAR_C = 1.0f;
-
 const unsigned long ANTI_CYCLING_MS = 60000UL;
 
 const float PH_MIN   = 7.2f;
@@ -103,6 +100,9 @@ const float ORP_MAX  = 750.0f;
 
 const float COND_MIN = 800.0f;
 const float COND_MAX = 1500.0f;
+
+// Simbolo de grau (°) no charset do controlador HD44780 do LCD.
+const char LCD_GRAU = (char)223;
 
 const unsigned long WIFI_RETRY_MS = 10000UL;
 const unsigned long MQTT_RETRY_MS = 5000UL;
@@ -198,28 +198,40 @@ void controlarBomba(float ph, float orp, float cond) {
 uint8_t escanearLCD() {
   Serial.println(F("[LCD] Escaneando barramento I2C..."));
 
-  uint8_t encontrados = 0;
+  // Endereços comuns de backpacks de LCD I2C (têm preferência).
+  const uint8_t enderecosLCD[] = { 0x27, 0x3F, 0x20, 0x38 };
+
+  uint8_t encontrados      = 0;
   uint8_t primeiroEndereco = 0;
+  uint8_t preferido        = 0;
 
   for (uint8_t addr = 1; addr < 127; addr++) {
     Wire.beginTransmission(addr);
-    uint8_t erro = Wire.endTransmission();
-
-    if (erro == 0) {
-      Serial.print(F("[LCD] Dispositivo encontrado em 0x"));
-
-      if (addr < 16) {
-        Serial.print('0');
-      }
-
-      Serial.println(addr, HEX);
-
-      if (primeiroEndereco == 0) {
-        primeiroEndereco = addr;
-      }
-
-      encontrados++;
+    if (Wire.endTransmission() != 0) {
+      continue;
     }
+
+    Serial.print(F("[LCD] Dispositivo encontrado em 0x"));
+    if (addr < 16) {
+      Serial.print('0');
+    }
+    Serial.println(addr, HEX);
+
+    if (primeiroEndereco == 0) {
+      primeiroEndereco = addr;
+    }
+
+    // Marca, na mesma varredura, se for um endereço típico de LCD.
+    if (preferido == 0) {
+      for (uint8_t i = 0; i < (sizeof(enderecosLCD) / sizeof(enderecosLCD[0])); i++) {
+        if (addr == enderecosLCD[i]) {
+          preferido = addr;
+          break;
+        }
+      }
+    }
+
+    encontrados++;
   }
 
   if (encontrados == 0) {
@@ -227,26 +239,15 @@ uint8_t escanearLCD() {
     return 0;
   }
 
-  // Dá preferência aos endereços comuns de LCD.
-  const uint8_t enderecosLCD[] = { 0x27, 0x3F, 0x20, 0x38 };
+  const uint8_t escolhido = (preferido != 0) ? preferido : primeiroEndereco;
 
-  for (uint8_t i = 0; i < (sizeof(enderecosLCD) / sizeof(enderecosLCD[0])); i++) {
-    uint8_t addr = enderecosLCD[i];
-
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      Serial.print(F("[LCD] Usando endereco 0x"));
-
-      if (addr < 16) {
-        Serial.print('0');
-      }
-
-      Serial.println(addr, HEX);
-      return addr;
-    }
+  Serial.print(F("[LCD] Usando endereco 0x"));
+  if (escolhido < 16) {
+    Serial.print('0');
   }
+  Serial.println(escolhido, HEX);
 
-  return primeiroEndereco;
+  return escolhido;
 }
 
 void escreverLinhaLCD(uint8_t linha, const char* texto) {
@@ -313,8 +314,8 @@ void atualizarLCD(float ph, float orp, float cond, float tPisc, float tSolar) {
     snprintf(l1, sizeof(l1), "pH%.2f ORP%d", ph, (int)orp);
     snprintf(l2, sizeof(l2), "EC%d B:%s", (int)cond, bombaLigada ? "ON" : "OFF");
   } else {
-    snprintf(l1, sizeof(l1), "Tp:%.1f%cC", tPisc, (char)223);
-    snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", tSolar, (char)223, bombaLigada ? "ON" : "OFF");
+    snprintf(l1, sizeof(l1), "Tp:%.1f%cC", tPisc, LCD_GRAU);
+    snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", tSolar, LCD_GRAU, bombaLigada ? "ON" : "OFF");
   }
 
   escreverLinhaLCD(0, l1);
