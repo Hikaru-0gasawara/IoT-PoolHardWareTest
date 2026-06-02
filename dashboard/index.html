@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AquaSense IoT — Dashboard</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    /* =========================================================
+       RESET & BASE
+    ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #7d8590;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --red:       #f85149;
+      --blue:      #58a6ff;
+      --purple:    #bc8cff;
+      --cyan:      #39d353;
+      --card-r:    10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* =========================================================
+       HEADER
+    ========================================================= */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .header-title .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .4s;
+    }
+    .header-title .dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .header-title .dot.off { background: var(--red); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #conn-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .btn:hover { background: #21262d; border-color: var(--blue); }
+    .btn.primary { background: var(--blue); color: #0d1117; border-color: var(--blue); font-weight: 600; }
+    .btn.primary:hover { background: #79c0ff; }
+    .btn.danger  { border-color: var(--red); color: var(--red); }
+    .btn.danger:hover { background: #2a0e0d; }
+
+    /* =========================================================
+       MAIN LAYOUT
+    ========================================================= */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* =========================================================
+       SECTION TITLES
+    ========================================================= */
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* =========================================================
+       STATUS BAR (sistema / bomba)
+    ========================================================= */
+    .status-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .status-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-r);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .status-chip .label { font-size: 11px; color: var(--muted); }
+    .status-chip .value { font-size: 22px; font-weight: 700; }
+    .status-chip .sub   { font-size: 11px; color: var(--muted); }
+
+    /* =========================================================
+       SENSOR CARDS
+    ========================================================= */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-r);
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .3s;
+    }
+
+    .card.alert { border-color: var(--red); }
+    .card.alert::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(248, 81, 73, .04);
+      pointer-events: none;
+    }
+
+    .card .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .card .card-value {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text);
+      transition: color .3s;
+    }
+
+    .card .card-unit {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    .card .card-range {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .card .card-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .card .card-badge.ok    { background: rgba(63,185,80,.15); color: var(--green); }
+    .card .card-badge.alert { background: rgba(248,81,73,.15); color: var(--red); }
+    .card .card-badge.none  { background: rgba(125,133,144,.1); color: var(--muted); }
+
+    /* =========================================================
+       GAUGE BAR
+    ========================================================= */
+    .gauge-wrap {
+      margin-top: 12px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .gauge-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: var(--green);
+      transition: width .5s, background .3s;
+    }
+
+    /* =========================================================
+       ALERTAS
+    ========================================================= */
+    .alertas-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-r);
+      padding: 16px 20px;
+      min-height: 60px;
+    }
+
+    #alertas-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .alerta-tag {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(248,81,73,.15);
+      color: var(--red);
+      border: 1px solid rgba(248,81,73,.3);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .6; }
+    }
+
+    .no-alertas {
+      font-size: 12px;
+      color: var(--green);
+    }
+
+    /* =========================================================
+       LOG
+    ========================================================= */
+    .log-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--card-r);
+      overflow: hidden;
+    }
+
+    .log-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #log-area {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      color: #8b949e;
+      padding: 12px 16px;
+      height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    #log-area .entry { display: flex; gap: 8px; }
+    #log-area .entry .ts  { color: #6e7681; flex-shrink: 0; }
+    #log-area .entry .msg { color: #8b949e; word-break: break-all; }
+    #log-area .entry.info  .msg { color: #58a6ff; }
+    #log-area .entry.ok    .msg { color: var(--green); }
+    #log-area .entry.warn  .msg { color: var(--yellow); }
+    #log-area .entry.error .msg { color: var(--red); }
+
+    /* =========================================================
+       MODAL de configuração
+    ========================================================= */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal h3 { font-size: 15px; }
+
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .field input:focus { border-color: var(--blue); }
+
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* =========================================================
+       RESPONSIVO
+    ========================================================= */
+    @media (max-width: 600px) {
+      .cards-grid { grid-template-columns: 1fr 1fr; }
+      .card .card-value { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-title">
+    <div class="dot" id="conn-dot"></div>
+    <span>AquaSense IoT</span>
+  </div>
+  <div class="header-right">
+    <span id="conn-label">desconectado</span>
+    <button class="btn" onclick="openModal()">&#9881; Configurar</button>
+    <button class="btn primary" id="btn-conn" onclick="toggleConn()">Conectar</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- STATUS SISTEMA -->
+  <div>
+    <div class="section-title">Sistema</div>
+    <div class="status-row">
+      <div class="status-chip">
+        <span class="label">Status MQTT</span>
+        <span class="value" id="sys-status" style="color:var(--muted)">—</span>
+      </div>
+      <div class="status-chip">
+        <span class="label">Bomba</span>
+        <span class="value" id="bomba-val" style="color:var(--muted)">—</span>
+      </div>
+      <div class="status-chip">
+        <span class="label">Última atualização</span>
+        <span class="value" id="last-update" style="font-size:15px;color:var(--muted)">—</span>
+        <span class="sub" id="last-update-rel"></span>
+      </div>
+      <div class="status-chip">
+        <span class="label">Mensagens recebidas</span>
+        <span class="value" id="msg-count" style="color:var(--blue)">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SENSORES QUÍMICOS -->
+  <div>
+    <div class="section-title">Qualidade da Água</div>
+    <div class="cards-grid">
+
+      <div class="card" id="card-ph">
+        <div class="card-label">pH</div>
+        <div class="card-value" id="val-ph">—<span class="card-unit"></span></div>
+        <div class="card-range">Faixa: 7.2 – 7.6</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-ph"></div></div>
+        <div class="card-badge none" id="badge-ph">aguardando</div>
+      </div>
+
+      <div class="card" id="card-orp">
+        <div class="card-label">ORP</div>
+        <div class="card-value" id="val-orp">—<span class="card-unit">mV</span></div>
+        <div class="card-range">Faixa: 650 – 750 mV</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-orp"></div></div>
+        <div class="card-badge none" id="badge-orp">aguardando</div>
+      </div>
+
+      <div class="card" id="card-cond">
+        <div class="card-label">Condutividade</div>
+        <div class="card-value" id="val-cond">—<span class="card-unit">µS/cm</span></div>
+        <div class="card-range">Faixa: 800 – 1500 µS/cm</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-cond"></div></div>
+        <div class="card-badge none" id="badge-cond">aguardando</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TEMPERATURA -->
+  <div>
+    <div class="section-title">Temperatura</div>
+    <div class="cards-grid">
+
+      <div class="card" id="card-tpisc">
+        <div class="card-label">Piscina</div>
+        <div class="card-value" id="val-tpisc">—<span class="card-unit">°C</span></div>
+        <div class="card-range">Temperatura da água</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-tpisc" style="background:var(--blue)"></div></div>
+        <div class="card-badge none" id="badge-tpisc">aguardando</div>
+      </div>
+
+      <div class="card" id="card-tsolar">
+        <div class="card-label">Coletor Solar</div>
+        <div class="card-value" id="val-tsolar">—<span class="card-unit">°C</span></div>
+        <div class="card-range">Temperatura do coletor</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-tsolar" style="background:var(--yellow)"></div></div>
+        <div class="card-badge none" id="badge-tsolar">aguardando</div>
+      </div>
+
+      <div class="card" id="card-dt">
+        <div class="card-label">ΔT (Solar − Piscina)</div>
+        <div class="card-value" id="val-dt">—<span class="card-unit">°C</span></div>
+        <div class="card-range">Liga bomba ≥ 5 °C · Desliga ≤ 1 °C</div>
+        <div class="gauge-wrap"><div class="gauge-fill" id="gauge-dt" style="background:var(--purple)"></div></div>
+        <div class="card-badge none" id="badge-dt">aguardando</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div>
+    <div class="section-title">Alertas ativos (snapshot Alexa)</div>
+    <div class="alertas-box">
+      <div id="alertas-list"><span class="no-alertas" style="display:none">&#10003; Todos os parâmetros dentro da faixa</span></div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-box">
+    <div class="log-header">
+      <span class="section-title" style="margin:0">Log MQTT</span>
+      <button class="btn" onclick="clearLog()">Limpar</button>
+    </div>
+    <div id="log-area"></div>
+  </div>
+
+</main>
+
+<!-- MODAL CONFIGURAÇÃO -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>Configuração MQTT</h3>
+    <div class="field">
+      <label>Host HiveMQ Cloud</label>
+      <input id="cfg-host" value="5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud" />
+    </div>
+    <div class="field">
+      <label>Porta WebSocket TLS</label>
+      <input id="cfg-port" value="8884" />
+    </div>
+    <div class="field">
+      <label>Usuário</label>
+      <input id="cfg-user" value="ProjetoIoT" />
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input id="cfg-pass" type="password" value="IoT12345678" />
+    </div>
+    <div class="field">
+      <label>Prefixo de tópicos</label>
+      <input id="cfg-prefix" value="aquasense-ibmec" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" onclick="saveModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CONFIGURAÇÃO PADRÃO
+// ============================================================
+let cfg = {
+  host:   '5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud',
+  port:   8884,
+  user:   'ProjetoIoT',
+  pass:   'IoT12345678',
+  prefix: 'aquasense-ibmec'
+};
+
+// Persiste config no localStorage
+(function loadCfg() {
+  try {
+    const saved = localStorage.getItem('aquasense_cfg');
+    if (saved) cfg = Object.assign(cfg, JSON.parse(saved));
+  } catch (_) {}
+})();
+
+// ============================================================
+//  ESTADO
+// ============================================================
+let client      = null;
+let connected   = false;
+let msgCount    = 0;
+let lastTs      = null;
+
+const state = {
+  ph: null, orp: null, cond: null,
+  tPisc: null, tSolar: null,
+  bomba: null, status: null, alertas: []
+};
+
+// ============================================================
+//  LOG
+// ============================================================
+function log(msg, type = '') {
+  const area  = document.getElementById('log-area');
+  const entry = document.createElement('div');
+  entry.className = 'entry ' + type;
+  const ts  = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+  entry.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+  area.appendChild(entry);
+  if (area.children.length > 200) area.removeChild(area.firstChild);
+  area.scrollTop = area.scrollHeight;
+}
+
+function clearLog() { document.getElementById('log-area').innerHTML = ''; }
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+//  CONEXÃO MQTT
+// ============================================================
+function toggleConn() {
+  if (connected) disconnect();
+  else connect();
+}
+
+function connect() {
+  if (client) { client.end(true); client = null; }
+
+  const url = `wss://${cfg.host}:${cfg.port}/mqtt`;
+  const clientId = 'dashboard-' + Math.random().toString(16).slice(2, 10);
+
+  log(`Conectando a ${url} ...`, 'info');
+  setConnState('connecting');
+
+  client = mqtt.connect(url, {
+    clientId,
+    username:       cfg.user,
+    password:       cfg.pass,
+    keepalive:      30,
+    reconnectPeriod: 5000,
+    connectTimeout:  10000,
+    clean: true
+  });
+
+  client.on('connect', () => {
+    connected = true;
+    setConnState('on');
+    log('Conectado ao HiveMQ Cloud', 'ok');
+
+    const prefix = cfg.prefix;
+    const topics = [
+      `${prefix}/agua/ph`,
+      `${prefix}/agua/orp`,
+      `${prefix}/agua/condutividade`,
+      `${prefix}/temperatura/piscina`,
+      `${prefix}/temperatura/coletor`,
+      `${prefix}/bomba/estado`,
+      `${prefix}/sistema/status`,
+      `${prefix}/alexa/snapshot`
+    ];
+
+    client.subscribe(topics, { qos: 1 }, (err) => {
+      if (err) log('Erro ao subscrever: ' + err.message, 'error');
+      else log(`Subscrito em ${topics.length} tópicos`, 'ok');
+    });
+  });
+
+  client.on('message', onMessage);
+
+  client.on('reconnect', () => {
+    log('Reconectando...', 'warn');
+    setConnState('connecting');
+  });
+
+  client.on('offline',  () => { setConnState('off'); log('Broker offline', 'warn'); });
+  client.on('error',    (e) => { log('Erro: ' + e.message, 'error'); });
+  client.on('close',    () => {
+    connected = false;
+    setConnState('off');
+  });
+}
+
+function disconnect() {
+  if (client) { client.end(); client = null; }
+  connected = false;
+  setConnState('off');
+  log('Desconectado.', 'warn');
+}
+
+// ============================================================
+//  MENSAGENS RECEBIDAS
+// ============================================================
+function onMessage(topic, payloadBuf) {
+  const msg = payloadBuf.toString();
+  msgCount++;
+  document.getElementById('msg-count').textContent = msgCount;
+  lastTs = new Date();
+
+  const topicShort = topic.replace(cfg.prefix + '/', '');
+  log(`[${topicShort}] ${msg}`);
+
+  switch (topicShort) {
+    case 'agua/ph':                updateSensor('ph',    parseFloat(msg)); break;
+    case 'agua/orp':               updateSensor('orp',   parseFloat(msg)); break;
+    case 'agua/condutividade':     updateSensor('cond',  parseFloat(msg)); break;
+    case 'temperatura/piscina':    updateSensor('tPisc', parseFloat(msg)); break;
+    case 'temperatura/coletor':    updateSensor('tSolar',parseFloat(msg)); break;
+    case 'bomba/estado':           updateBomba(msg); break;
+    case 'sistema/status':         updateStatus(msg); break;
+    case 'alexa/snapshot':         updateSnapshot(msg); break;
+  }
+
+  updateLastTs();
+  updateDeltaT();
+}
+
+// ============================================================
+//  ATUALIZAÇÕES DE ESTADO
+// ============================================================
+const sensorCfg = {
+  ph:     { el: 'ph',     min: 7.2,  max: 7.6,   absMin: 6.0,  absMax: 9.0,   dec: 2 },
+  orp:    { el: 'orp',    min: 650,  max: 750,   absMin: 400,  absMax: 1000,  dec: 0 },
+  cond:   { el: 'cond',   min: 800,  max: 1500,  absMin: 0,    absMax: 2000,  dec: 0 },
+  tPisc:  { el: 'tpisc',  min: null, max: null,  absMin: 0,    absMax: 50,    dec: 1 },
+  tSolar: { el: 'tsolar', min: null, max: null,  absMin: 0,    absMax: 80,    dec: 1 }
+};
+
+function updateSensor(key, val) {
+  if (isNaN(val)) return;
+  state[key] = val;
+  const sc = sensorCfg[key];
+  if (!sc) return;
+
+  const id = sc.el;
+  document.getElementById(`val-${id}`).childNodes[0].textContent = val.toFixed(sc.dec);
+
+  // gauge
+  const pct = Math.max(0, Math.min(100,
+    ((val - sc.absMin) / (sc.absMax - sc.absMin)) * 100
+  ));
+  const gEl = document.getElementById(`gauge-${id}`);
+  if (gEl) gEl.style.width = pct + '%';
+
+  // badge + card alert
+  const card  = document.getElementById(`card-${id}`);
+  const badge = document.getElementById(`badge-${id}`);
+  if (sc.min !== null) {
+    const outOfRange = val < sc.min || val > sc.max;
+    if (outOfRange) {
+      card.classList.add('alert');
+      badge.className = 'card-badge alert';
+      badge.textContent = val < sc.min ? '▼ Abaixo do limite' : '▲ Acima do limite';
+      if (gEl) gEl.style.background = 'var(--red)';
+    } else {
+      card.classList.remove('alert');
+      badge.className = 'card-badge ok';
+      badge.textContent = '✓ Normal';
+      if (gEl) gEl.style.background = 'var(--green)';
+    }
+  } else {
+    badge.className = 'card-badge none';
+    badge.textContent = val.toFixed(sc.dec) + ' °C';
+  }
+}
+
+function updateDeltaT() {
+  if (state.tPisc === null || state.tSolar === null) return;
+  const dT = state.tSolar - state.tPisc;
+  const el = document.getElementById('val-dt');
+  el.childNodes[0].textContent = dT.toFixed(1);
+
+  const pct  = Math.max(0, Math.min(100, ((dT + 5) / 20) * 100));
+  const gDt  = document.getElementById('gauge-dt');
+  if (gDt) gDt.style.width = pct + '%';
+
+  const badge = document.getElementById('badge-dt');
+  if (dT >= 5) {
+    badge.className = 'card-badge alert';
+    badge.textContent = '▲ Bomba deveria ligar';
+    gDt && (gDt.style.background = 'var(--green)');
+  } else if (dT <= 1) {
+    badge.className = 'card-badge ok';
+    badge.textContent = '✓ Bomba pode desligar';
+    gDt && (gDt.style.background = 'var(--blue)');
+  } else {
+    badge.className = 'card-badge none';
+    badge.textContent = `dT = ${dT.toFixed(1)} °C`;
+    gDt && (gDt.style.background = 'var(--purple)');
+  }
+}
+
+function updateBomba(msg) {
+  state.bomba = msg;
+  const el = document.getElementById('bomba-val');
+  if (msg === 'ON') {
+    el.textContent = 'LIGADA';
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = 'DESLIGADA';
+    el.style.color = 'var(--muted)';
+  }
+}
+
+function updateStatus(msg) {
+  state.status = msg;
+  const el = document.getElementById('sys-status');
+  if (msg === 'online') {
+    el.textContent = 'online';
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = 'offline';
+    el.style.color = 'var(--red)';
+  }
+}
+
+function updateSnapshot(msg) {
+  try {
+    const snap = JSON.parse(msg);
+    const list  = document.getElementById('alertas-list');
+    list.innerHTML = '';
+
+    if (!snap.alertas || snap.alertas.length === 0) {
+      const ok = document.createElement('span');
+      ok.className = 'no-alertas';
+      ok.textContent = '✓ Todos os parâmetros dentro da faixa';
+      list.appendChild(ok);
+    } else {
+      snap.alertas.forEach(a => {
+        const tag = document.createElement('span');
+        tag.className = 'alerta-tag';
+        tag.textContent = a;
+        list.appendChild(tag);
+      });
+    }
+  } catch (_) {}
+}
+
+function updateLastTs() {
+  if (!lastTs) return;
+  document.getElementById('last-update').textContent =
+    lastTs.toLocaleTimeString('pt-BR', { hour12: false });
+}
+
+// ============================================================
+//  ESTADO DE CONEXÃO
+// ============================================================
+function setConnState(s) {
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  const btn   = document.getElementById('btn-conn');
+
+  dot.className = 'dot ' + (s === 'on' ? 'on' : s === 'off' ? 'off' : '');
+
+  if (s === 'on') {
+    label.textContent = 'conectado';
+    btn.textContent   = 'Desconectar';
+    btn.className     = 'btn danger';
+  } else if (s === 'connecting') {
+    label.textContent = 'conectando...';
+    btn.textContent   = 'Cancelar';
+    btn.className     = 'btn';
+  } else {
+    label.textContent = 'desconectado';
+    btn.textContent   = 'Conectar';
+    btn.className     = 'btn primary';
+  }
+}
+
+// ============================================================
+//  MODAL
+// ============================================================
+function openModal() {
+  document.getElementById('cfg-host').value   = cfg.host;
+  document.getElementById('cfg-port').value   = cfg.port;
+  document.getElementById('cfg-user').value   = cfg.user;
+  document.getElementById('cfg-pass').value   = cfg.pass;
+  document.getElementById('cfg-prefix').value = cfg.prefix;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function saveModal() {
+  cfg.host   = document.getElementById('cfg-host').value.trim();
+  cfg.port   = parseInt(document.getElementById('cfg-port').value) || 8884;
+  cfg.user   = document.getElementById('cfg-user').value.trim();
+  cfg.pass   = document.getElementById('cfg-pass').value;
+  cfg.prefix = document.getElementById('cfg-prefix').value.trim();
+  try { localStorage.setItem('aquasense_cfg', JSON.stringify(cfg)); } catch(_) {}
+  closeModal();
+  if (connected) { disconnect(); setTimeout(connect, 300); }
+}
+
+document.getElementById('overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ============================================================
+//  TICK — atualiza tempo relativo
+// ============================================================
+setInterval(() => {
+  if (!lastTs) return;
+  const s = Math.floor((Date.now() - lastTs.getTime()) / 1000);
+  const rel = s < 5  ? 'agora mesmo'
+            : s < 60 ? `há ${s}s`
+            : `há ${Math.floor(s/60)}m`;
+  document.getElementById('last-update-rel').textContent = rel;
+}, 1000);
+
+// Auto-conecta ao carregar
+window.addEventListener('load', () => {
+  log('AquaSense IoT Dashboard iniciado.', 'info');
+  log('Clique em "Conectar" ou configure o broker em ⚙ Configurar.', 'info');
+});
+</script>
+</body>
+</html>
