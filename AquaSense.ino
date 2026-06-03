@@ -156,8 +156,9 @@ bool          primeiroCiclo      = true;
 // Leituras atuais.
 static float g_ph     = 7.4f;
 static float g_orp    = 700.0f;
-static float g_cloro  = 2.0f;
-static float g_alc    = 100.0f;
+static float g_cond   = 1000.0f;  // condutividade (uS/cm)
+static float g_cloro  = 2.0f;     // derivado do ORP
+static float g_alc    = 100.0f;   // derivado da condutividade
 static float g_tPisc  = 28.0f;
 static float g_tSolar = 30.0f;
 static float g_umid   = 65.0f;
@@ -170,13 +171,38 @@ char g_doseEmAndamento[8] = "";              // "" = null | "cloro" | "acido" | 
 // ============================================================================
 //  SIMULACAO DOS SENSORES (literais float — sem promocao a double)
 // ============================================================================
-float lerPH()            { return 7.4f   + sinf(millis() / 30000.0f) * 0.2f;   }  // 7.2 – 7.6
-float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f;  }  // 640 – 760 mV
-float lerCloro()         { return 2.0f   + sinf(millis() / 35000.0f) * 0.9f;   }  // 1.1 – 2.9 ppm
-float lerAlcalinidade()  { return 100.0f + sinf(millis() / 40000.0f) * 18.0f;  }  // 82 – 118 ppm
-float lerTempPiscina()   { return 28.0f  + sinf(millis() / 60000.0f) * 2.0f;   }
-float lerTempSolar()     { return 30.0f  + sinf(millis() / 45000.0f) * 9.0f;   }
-float lerUmidade()       { return 65.0f  + sinf(millis() / 50000.0f) * 10.0f;  }
+float lerPH()             { return 7.4f    + sinf(millis() / 30000.0f) * 0.2f;  }  // 7.2 – 7.6
+float lerORP()            { return 700.0f  + sinf(millis() / 25000.0f) * 60.0f; }  // 640 – 760 mV
+float lerCondutividade()  { return 1000.0f + sinf(millis() / 40000.0f) * 180.0f;}  // 820 – 1180 uS/cm
+float lerTempPiscina()    { return 28.0f   + sinf(millis() / 60000.0f) * 2.0f;  }
+float lerTempSolar()      { return 30.0f   + sinf(millis() / 45000.0f) * 9.0f;  }
+float lerUmidade()        { return 65.0f   + sinf(millis() / 50000.0f) * 10.0f; }
+
+// ----------------------------------------------------------------------------
+//  CONVERSOES ELETROQUIMICAS
+// ----------------------------------------------------------------------------
+
+// ORP + pH → Cloro livre (ppm)
+// Equacao de Nernst simplificada (empirica, valida para 600–800 mV, pH 6.8–7.8).
+// Referencia: pH 7.4 + ORP 700 mV => ~2.0 ppm Cl livre.
+// Correcao de pH: -59.16 mV por unidade de pH acima de 7.0 (HOCl/OCl- equilibrio).
+float calcularCloroLivre(float orp_mv, float ph) {
+  float orp_eff = orp_mv - (ph - 7.0f) * 59.16f;
+  float cl = 2.0f * powf(10.0f, (orp_eff - 676.0f) / 284.0f);
+  if (cl < 0.05f) return 0.05f;
+  if (cl > 15.0f) return 15.0f;
+  return cl;
+}
+
+// Condutividade (uS/cm) → Alcalinidade total (ppm como CaCO3)
+// Agua de piscina: bicarbonato (HCO3-) domina a condutividade.
+// Empirica: 1000 uS/cm ~ 100 ppm; razao 0.10 valida para 700–1400 uS/cm.
+float calcularAlcalinidade(float cond_us_cm) {
+  float alc = cond_us_cm * 0.10f;
+  if (alc < 0.0f)   return 0.0f;
+  if (alc > 500.0f) return 500.0f;
+  return alc;
+}
 
 inline bool foraDaFaixa(float v, float lo, float hi) {
   return (v < lo) || (v > hi);
@@ -297,15 +323,17 @@ static void publicarDados() {
     snprintf(dose, sizeof(dose), "\"%s\"", g_doseEmAndamento);
   }
 
-  char payload[420];
+  char payload[480];
   snprintf(payload, sizeof(payload),
     "{\"projeto\":\"AquaSense IoT\",\"ciclo\":%lu,"
     "\"ph\":%.2f,\"orp_mv\":%.1f,\"cloro\":%.2f,\"alcalinidade\":%.1f,"
+    "\"condutividade_us_cm\":%.1f,"
     "\"temp_piscina\":%.1f,\"temp_coletor\":%.1f,\"delta_t\":%.1f,\"umidade\":%.1f,"
     "\"bomba\":\"%s\",\"alertas\":%s,"
     "\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s}",
     (unsigned long)ciclo,
     g_ph, g_orp, g_cloro, g_alc,
+    g_cond,
     g_tPisc, g_tSolar, deltaT, g_umid,
     bombaLigada ? "LIGADA" : "DESLIGADA", alertas,
     g_modo, g_paradaEmergencia ? "true" : "false", dose);
@@ -763,8 +791,9 @@ void loop() {
 
   g_ph     = lerPH();
   g_orp    = lerORP();
-  g_cloro  = lerCloro();
-  g_alc    = lerAlcalinidade();
+  g_cond   = lerCondutividade();
+  g_cloro  = calcularCloroLivre(g_orp, g_ph);     // ORP + pH → Cl livre
+  g_alc    = calcularAlcalinidade(g_cond);          // condutividade → alcalinidade
   g_tPisc  = lerTempPiscina();
   g_tSolar = lerTempSolar();
   g_umid   = lerUmidade();
@@ -775,9 +804,10 @@ void loop() {
 
   Serial.print(F("c="));      Serial.print(ciclo);
   Serial.print(F(" pH="));    Serial.print(g_ph, 2);
-  Serial.print(F(" Cl="));    Serial.print(g_cloro, 2);
-  Serial.print(F(" Alc="));   Serial.print(g_alc, 0);
   Serial.print(F(" ORP="));   Serial.print(g_orp, 0);
+  Serial.print(F(" Cl="));    Serial.print(g_cloro, 2);
+  Serial.print(F(" Cond="));  Serial.print(g_cond, 0);
+  Serial.print(F(" Alc="));   Serial.print(g_alc, 0);
   Serial.print(F(" Tp="));    Serial.print(g_tPisc, 1);
   Serial.print(F(" Ts="));    Serial.print(g_tSolar, 1);
   Serial.print(F(" dT="));    Serial.print(g_tSolar - g_tPisc, 1);

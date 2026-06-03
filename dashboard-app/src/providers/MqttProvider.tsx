@@ -5,7 +5,8 @@
 // identificadores internos EN (DoseEvent.parameter/event, ControlMode "auto"/etc.)
 // para minimizar ripple no resto do código TypeScript.
 //
-// Conecta a wss://broker.hivemq.com:8884/mqtt e parseia o tópico consolidado
+// Conecta a wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt (HiveMQ Cloud TLS)
+// e parseia o tópico consolidado
 // aquasense-ibmec-pt/dados. Empurra cada amostra para o poolStore via
 // ingestFromMqtt() — assim toda a UI continua funcionando sem mudanças.
 //
@@ -50,7 +51,9 @@ import {
   resetBaseline,
 } from "@/lib/cycleGaps";
 
-const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
+const MQTT_URL      = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USERNAME = "ProjetoIoT";
+const MQTT_PASSWORD = "IoT12345678";
 const FALLBACK_AFTER_MS = 15_000;
 const LOG_MAX = 50;
 const DOSING_EVENTS_MAX = 50;
@@ -180,6 +183,7 @@ const FlatPayloadPtSchema = z
     temp_coletor: numInRange(-10, 150).optional(),
     delta_t: z.number().finite().min(-100).max(100).optional(),
     umidade: z.number().finite().min(-1).max(100).optional(),
+    condutividade_us_cm: z.number().finite().min(0).max(10000).optional(),
     bomba: z.union([z.enum(["LIGADA", "DESLIGADA"]), z.boolean()]),
     alertas: z.array(z.string().max(200)).max(20).optional(),
     ciclo: z.number().int().min(0).max(10_000_000).optional(),
@@ -211,7 +215,8 @@ function parseConsolidated(raw: string): AquaSenseData | null {
     const tPool = f.temp_piscina;
     const tSolar = f.temp_coletor ?? -99;
     const dT = f.delta_t ?? tSolar - tPool;
-    const hum = f.umidade ?? -1;
+    const hum  = f.umidade ?? -1;
+    const cond = f.condutividade_us_cm ?? null;
     const pumpOn = f.bomba === "LIGADA" || f.bomba === true;
     const alerts = (f.alertas ?? []).slice(0, 20);
 
@@ -226,6 +231,7 @@ function parseConsolidated(raw: string): AquaSenseData | null {
         orp_mv: orp,
         alcalinidade_ppm: alk,
         alcalinidade_status: statusFor(alk, 80, 120),
+        condutividade_us_cm: cond ?? undefined,
       },
       temperaturas: {
         piscina_C: tPool,
@@ -276,6 +282,8 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       clean: true,
       reconnectPeriod: 4000,
       connectTimeout: 10_000,
+      username: MQTT_USERNAME,
+      password: MQTT_PASSWORD,
     });
     clientRef.current = client;
 
