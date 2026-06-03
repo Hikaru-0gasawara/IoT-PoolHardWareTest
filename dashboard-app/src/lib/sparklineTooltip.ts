@@ -13,8 +13,8 @@ export interface TooltipLines {
 
 function decimalsFor(paramKey: ParameterKey): number {
   if (paramKey === "ph") return 2;
-  if (paramKey === "orp") return 0;
-  if (paramKey === "condutividade") return 0;
+  if (paramKey === "cloro") return 2;
+  if (paramKey === "alcalinidade") return 0;
   return 1; // temperaturas
 }
 

@@ -1,10 +1,7 @@
 // AquaSense IoT — Tipos de domínio
 // Toda a UI consome destes tipos. Não inventar campos extras nos componentes.
-//
-// Parâmetros de água alinhados ao firmware v2.3: pH, ORP (mV) e
-// condutividade (µS/cm). Não há mais cloro/alcalinidade.
 
-export type ParameterKey = "ph" | "orp" | "condutividade" | "temp_piscina" | "temp_coletor";
+export type ParameterKey = "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "temp_coletor";
 
 export type StatusLevel = "ok" | "warn" | "crit";
 
@@ -13,8 +10,8 @@ export type PumpMode = "automatico" | "manual";
 export interface SensorPoint {
   t: number; // epoch ms
   ph: number;
-  orp: number;
-  condutividade: number;
+  cloro: number;
+  alcalinidade: number;
   temp_piscina: number;
   temp_coletor: number;
   bomba_ligada: boolean;
@@ -75,8 +72,9 @@ export interface Thresholds {
 export interface PoolState {
   // leituras atuais
   ph: number;
-  orp: number;
-  condutividade: number;
+  cloro: number;
+  orp_mv: number;
+  alcalinidade: number;
   temp_piscina: number;
   temp_coletor: number;
   delta_t: number;

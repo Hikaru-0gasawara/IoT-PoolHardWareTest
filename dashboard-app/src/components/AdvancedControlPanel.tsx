@@ -25,7 +25,7 @@ import { HoldButton } from "@/components/HoldButton";
 import { isSensorError } from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
-import type { DoseChemical, DosingResponse } from "@/types/firmware";
+import type { ControlMode, DoseChemical, DoseEvent } from "@/types/firmware";
 
 // Mapeamento canônico dos 3 produtos químicos das dosadoras peristálticas.
 // Tom da UI segue a categoria de risco percebida (cloro = mais crítico).
@@ -36,7 +36,7 @@ const CHEMICALS: ReadonlyArray<{
   tone: "danger" | "warn";
   icon: React.ReactNode;
   /** Parâmetro do `data` que precisa estar válido para liberar dose */
-  sensorPath: "orp_mv" | "ph";
+  sensorPath: "cloro_ppm" | "ph";
 }> = [
   {
     key: "cloro",
@@ -44,7 +44,7 @@ const CHEMICALS: ReadonlyArray<{
     subtitle: "Bomba peristáltica · GPIO 25",
     tone: "danger",
     icon: <Droplets className="h-4 w-4" />,
-    sensorPath: "orp_mv",
+    sensorPath: "cloro_ppm",
   },
   {
     key: "acido",
@@ -390,22 +390,88 @@ function LivePanel() {
   const {
     status,
     source,
+    controlState,
     data,
-    dosingResponses,
+    dosingEvents,
+    systemHealth,
+    publishMode,
     publishDosingCommand,
   } = useMqtt();
 
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pendingMode, setPendingMode] = useState<ControlMode | null>(null);
   const [pendingDose, setPendingDose] = useState<DoseChemical | null>(null);
+  // FORK PT — adições/melhorias do store consumidas aqui:
+  // - cloroEmErro: 3+ ciclos com cloro=0 ⇒ trava dose de cloro
+  // - ultimaDosePorProduto: timestamp da última dose `concluida` por produto
+  const cloroEmErro = usePoolStore((s) => s.cloroEmErro);
   const ultimaDosePorProduto = usePoolStore((s) => s.ultimaDosePorProduto);
-  const now = useNow(30_000);
+  const now = useNow(30_000); // tick a cada 30s já é suficiente para "há X min"
+  // Modo otimista: aplicado imediatamente ao clicar; é descartado quando o
+  // eco do controlState confirma OU quando o timeout reverte.
+  const [optimisticMode, setOptimisticMode] = useState<ControlMode | null>(null);
+
+  // Estado consolidado: otimista > controlState (retain) > snapshot do data.
+  // controlState chega imediato após subscribe; data só a cada 5s.
+  const mode: ControlMode =
+    optimisticMode ?? controlState?.mode ?? data?.mode ?? "manual";
+  const estop: boolean = controlState?.estop ?? data?.estop ?? false;
+  const doseInProgress: DoseChemical | null =
+    controlState?.dose_in_progress ?? data?.dose_in_progress ?? null;
 
   const brokerConnected = status === "connected";
   const hasLiveFirmware = brokerConnected && source === "mqtt";
 
+  // Ref espelhando controlState.mode — usado pelo waitForEcho dentro de uma
+  // Promise para enxergar mudanças sem depender do closure.
+  const controlModeRef = useRef<ControlMode | undefined>(controlState?.mode);
+  useEffect(() => {
+    controlModeRef.current = controlState?.mode;
+  }, [controlState?.mode]);
+
   const showFeedback = (kind: "ok" | "err", text: string) => {
     setFeedback({ kind, text });
     window.setTimeout(() => setFeedback(null), 3500);
+  };
+
+  const waitForModeEcho = (expected: ControlMode, timeoutMs: number) =>
+    new Promise<boolean>((resolve) => {
+      if (controlModeRef.current === expected) return resolve(true);
+      const start = Date.now();
+      const id = window.setInterval(() => {
+        if (controlModeRef.current === expected) {
+          window.clearInterval(id);
+          resolve(true);
+        } else if (Date.now() - start >= timeoutMs) {
+          window.clearInterval(id);
+          resolve(false);
+        }
+      }, 100);
+    });
+
+  const handleModeChange = async (next: ControlMode) => {
+    if (mode === next) return;
+    // 1. UI atualiza imediatamente — feedback otimista.
+    setOptimisticMode(next);
+    setPendingMode(next);
+    try {
+      // 2. Publica em paralelo.
+      await publishMode(next);
+      // 3. Aguarda eco via controlState (até 5s).
+      const echoed = await waitForModeEcho(next, 5000);
+      if (!echoed) {
+        setOptimisticMode(null);
+        showFeedback("err", "ESP32 não confirmou — verifique conexão");
+      } else {
+        // Eco recebido: descarta otimismo, controlState passa a refletir.
+        setOptimisticMode(null);
+      }
+    } catch (e) {
+      setOptimisticMode(null);
+      showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar comando");
+    } finally {
+      setPendingMode(null);
+    }
   };
 
   const handleDose = async (chem: DoseChemical) => {
@@ -420,9 +486,17 @@ function LivePanel() {
     }
   };
 
-  // Razão de bloqueio para cada dose. Retorna null = liberado.
+  // Razão de bloqueio para cada dose. Cascata por prioridade — o motivo
+  // mais grave/relevante vem primeiro. Retorna null = liberado.
   const reasonToBlockDose = (chem: DoseChemical): string | null => {
     if (!hasLiveFirmware) return "Sem telemetria real do ESP32 — comandos bloqueados";
+    if (estop) return "E-Stop ativo — nenhuma dose permitida (release físico no GPIO 13)";
+    if (mode !== "auto" && mode !== "manual") return "Modo desconhecido — aguardando estado";
+    if (doseInProgress) return `Dose de "${doseInProgress}" em andamento — aguarde`;
+    // FORK PT (Adição 1) — sensor de cloro provavelmente quebrado.
+    if (chem === "cloro" && cloroEmErro) {
+      return "Sensor de cloro lendo 0.0 ppm há vários ciclos — provável falha. Verifique fisicamente antes de dosar.";
+    }
     // Bloqueio por sensor inválido — só faz sentido para o parâmetro
     // que aquela dosadora corrige.
     const meta = CHEMICALS.find((c) => c.key === chem);
@@ -430,15 +504,15 @@ function LivePanel() {
       const value =
         meta.sensorPath === "ph"
           ? data.qualidade_agua.ph
-          : data.qualidade_agua.orp_mv;
+          : data.qualidade_agua.cloro_ppm;
       if (isSensorError(value)) {
-        return `Sensor de ${meta.sensorPath === "ph" ? "pH" : "ORP"} com erro — dose bloqueada`;
+        return `Sensor de ${meta.sensorPath === "ph" ? "pH" : "cloro"} com erro — dose bloqueada`;
       }
     }
     return null;
   };
 
-  // Formata "há 1h 23m" / "há 5min" / "há 12s".
+  // FORK PT (Melhoria 2) — formata "há 1h 23m" / "há 5min" / "há 12s".
   const formatSince = (t: number | null): string | null => {
     if (t == null) return null;
     const diff = Math.max(0, now - t);
@@ -449,6 +523,8 @@ function LivePanel() {
     const h = Math.floor(m / 60);
     return `há ${h}h ${m % 60}min`;
   };
+
+  const dosesToday = systemHealth?.doses_today;
 
   return (
     <section
@@ -464,7 +540,7 @@ function LivePanel() {
           <div>
             <h2 className="text-sm font-semibold text-aqua-text">Painel operacional</h2>
             <p className="text-[11px] text-aqua-text-muted">
-              Dosagem manual via MQTT — estado em tempo real
+              Comandos ativos via MQTT — estado em tempo real
             </p>
           </div>
         </div>
@@ -472,24 +548,39 @@ function LivePanel() {
       </div>
 
       {/* Cards de estado em tempo real */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatusCard
-          label="Bomba"
-          value={data?.controle.bomba === "LIGADA" ? "Ligada" : "Desligada"}
-          tone={data?.controle.bomba === "LIGADA" ? "ok" : "neutral"}
-          icon={<Activity className="h-3.5 w-3.5" />}
+          label="Modo"
+          value={mode === "auto" ? "Automático" : mode === "manual" ? "Manual" : "E-Stop"}
+          tone={mode === "auto" ? "ok" : "neutral"}
+          icon={mode === "auto" ? <Bot className="h-3.5 w-3.5" /> : <Hand className="h-3.5 w-3.5" />}
         />
         <StatusCard
-          label="Alertas"
-          value={data ? String(data.alertas.length) : "—"}
-          tone={data && data.alertas.length > 0 ? "warn" : "ok"}
-          icon={<TriangleAlert className="h-3.5 w-3.5" />}
+          label="E-Stop"
+          value={estop ? "Ativo" : "Inativo"}
+          tone={estop ? "crit" : "ok"}
+          icon={<Power className="h-3.5 w-3.5" />}
         />
         <StatusCard
-          label="Respostas"
-          value={String(dosingResponses.length)}
-          tone="neutral"
+          label="Dose ativa"
+          value={doseInProgress ? doseInProgress : "Nenhuma"}
+          tone={doseInProgress ? "warn" : "neutral"}
           icon={<CircleDot className="h-3.5 w-3.5" />}
+        />
+        <StatusCard
+          label="Doses hoje"
+          value={
+            dosesToday
+              ? `${dosesToday.cloro + dosesToday.acido + dosesToday.base}`
+              : "—"
+          }
+          tone="neutral"
+          icon={<Activity className="h-3.5 w-3.5" />}
+          sub={
+            dosesToday
+              ? `Cl ${dosesToday.cloro} · Ác ${dosesToday.acido} · Bs ${dosesToday.base}`
+              : "aguardando health"
+          }
         />
       </div>
 
@@ -508,6 +599,51 @@ function LivePanel() {
           <span>{feedback.text}</span>
         </div>
       )}
+
+      {/* Toggle de modo Auto/Manual */}
+      <div className="mt-4">
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
+          Modo de operação
+        </h3>
+        <div
+          role="radiogroup"
+          aria-label="Modo de operação do controle"
+          className="grid grid-cols-2 gap-2"
+        >
+          <ModeButton
+            active={mode === "auto"}
+            disabled={!hasLiveFirmware || estop || pendingMode !== null}
+            disabledReason={
+              !hasLiveFirmware
+                ? "Sem telemetria real do ESP32 — comandos bloqueados"
+                : estop
+                  ? "E-Stop ativo bloqueia mudança de modo via software"
+                  : undefined
+            }
+            loading={pendingMode === "auto"}
+            onClick={() => handleModeChange("auto")}
+            icon={<Bot className="h-4 w-4" />}
+            label="Automático"
+            desc="Sistema decide a dosagem"
+          />
+          <ModeButton
+            active={mode === "manual"}
+            disabled={!hasLiveFirmware || estop || pendingMode !== null}
+            disabledReason={
+              !hasLiveFirmware
+                ? "Sem telemetria real do ESP32 — comandos bloqueados"
+                : estop
+                  ? "E-Stop ativo bloqueia mudança de modo via software"
+                  : undefined
+            }
+            loading={pendingMode === "manual"}
+            onClick={() => handleModeChange("manual")}
+            icon={<Hand className="h-4 w-4" />}
+            label="Manual"
+            desc="Aguarda comando humano"
+          />
+        </div>
+      </div>
 
       {/* Botões de dose manual */}
       <div className="mt-4">
@@ -542,12 +678,12 @@ function LivePanel() {
         </div>
       </div>
 
-      {/* Últimas respostas de dosagem */}
+      {/* Últimos eventos de dosagem */}
       <div className="mt-4">
         <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
-          Últimas respostas
+          Últimos eventos
         </h3>
-        <DosingResponseList responses={dosingResponses.slice(0, 6)} />
+        <DosingEventList events={dosingEvents.slice(0, 6)} />
       </div>
     </section>
   );
@@ -663,27 +799,37 @@ function ModeButton({
   );
 }
 
-function DosingResponseList({ responses }: { responses: ReadonlyArray<DosingResponse> }) {
-  if (responses.length === 0) {
+function DosingEventList({ events }: { events: ReadonlyArray<DoseEvent> }) {
+  if (events.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-aqua-border bg-aqua-surface-2/30 px-3 py-4 text-center text-xs text-aqua-text-muted">
-        Nenhuma resposta de dosagem ainda.
+        Nenhum evento de dosagem ainda.
       </div>
     );
   }
   return (
     <ul className="divide-y divide-aqua-border/60 overflow-hidden rounded-lg border border-aqua-border">
-      {responses.map((ev, i) => (
+      {events.map((ev, i) => (
         <li key={i} className="flex items-center gap-2.5 bg-aqua-surface-2/30 px-3 py-2">
-          <ResultIcon kind={ev.resultado} />
+          <EventIcon kind={ev.event} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 text-xs font-medium text-aqua-text">
-              <span className="capitalize">{ev.parametro ?? "—"}</span>
+              <span className="capitalize">{ev.parameter}</span>
               <span className="text-aqua-text-muted">·</span>
-              <ResultBadge kind={ev.resultado} />
+              <EventBadge kind={ev.event} />
+              {/* FORK PT (Melhoria 1) — origem do comando para auditoria. */}
+              {ev.fonte && (
+                <span
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-aqua-border bg-aqua-surface px-1.5 py-px text-[9px] font-medium uppercase tracking-wider text-aqua-text-muted"
+                  title={ev.fonte === "automatico" ? "Disparado pelo controle automático" : "Disparado por comando manual do operador"}
+                >
+                  {ev.fonte === "automatico" ? <Bot className="h-2.5 w-2.5" /> : <Hand className="h-2.5 w-2.5" />}
+                  {ev.fonte === "automatico" ? "Auto" : "Manual"}
+                </span>
+              )}
             </div>
-            {ev.motivo && (
-              <div className="truncate text-[11px] text-aqua-text-muted">{ev.motivo}</div>
+            {ev.reason && (
+              <div className="truncate text-[11px] text-aqua-text-muted">{ev.reason}</div>
             )}
           </div>
           <time className="font-tabular text-[10px] text-aqua-text-muted shrink-0">
@@ -695,17 +841,17 @@ function DosingResponseList({ responses }: { responses: ReadonlyArray<DosingResp
   );
 }
 
-function ResultIcon({ kind }: { kind: DosingResponse["resultado"] }) {
-  if (kind === "ok")
+function EventIcon({ kind }: { kind: DoseEvent["event"] }) {
+  if (kind === "started")
+    return (
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-aqua-accent/15 text-aqua-accent" aria-hidden>
+        <CircleDot className="h-3 w-3" />
+      </span>
+    );
+  if (kind === "completed")
     return (
       <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-ok/15 text-status-ok" aria-hidden>
         <CheckCircle2 className="h-3 w-3" />
-      </span>
-    );
-  if (kind === "bloqueado")
-    return (
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-warn/15 text-status-warn" aria-hidden>
-        <CircleDot className="h-3 w-3" />
       </span>
     );
   return (
@@ -715,11 +861,11 @@ function ResultIcon({ kind }: { kind: DosingResponse["resultado"] }) {
   );
 }
 
-function ResultBadge({ kind }: { kind: DosingResponse["resultado"] }) {
+function EventBadge({ kind }: { kind: DoseEvent["event"] }) {
   const map = {
-    ok: { label: "ok", cls: "text-status-ok" },
-    erro: { label: "erro", cls: "text-status-crit" },
-    bloqueado: { label: "bloqueado", cls: "text-status-warn" },
+    started: { label: "iniciada", cls: "text-aqua-accent" },
+    completed: { label: "concluída", cls: "text-status-ok" },
+    blocked: { label: "bloqueada", cls: "text-status-crit" },
   } as const;
   const m = map[kind];
   return (

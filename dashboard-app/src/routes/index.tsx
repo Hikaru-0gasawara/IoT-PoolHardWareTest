@@ -3,9 +3,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { SolarSystemHero } from "@/components/editorial/SolarSystemHero";
 import { WaterQualityCard } from "@/components/editorial/WaterQualityCard";
+import { DosesLast24hCard } from "@/components/editorial/DosesLast24hCard";
+import { ModeCard } from "@/components/editorial/ModeCard";
 import { MqttLog } from "@/components/MqttLog";
 import { usePoolStore } from "@/store/poolStore";
-import { useConnection } from "@/hooks/useAquaSense";
+import {
+  useConnection,
+  useControlState,
+  useDoseInProgress,
+  useDosingEvents,
+} from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
 import type { ParameterKey } from "@/types/aquasense";
 
@@ -15,7 +22,7 @@ export const Route = createFileRoute("/")({
       { title: "AquaSense IoT — Monitor de piscina em tempo real" },
       { name: "description", content: "Dashboard interativo para monitoramento e controle de piscina aquecida via coletor solar. Sensores ESP32 + MQTT." },
       { property: "og:title", content: "AquaSense IoT — Monitor de piscina" },
-      { property: "og:description", content: "Telemetria em tempo real: pH, ORP, condutividade, temperatura e controle automático da bomba." },
+      { property: "og:description", content: "Telemetria em tempo real: pH, cloro, alcalinidade, temperatura e controle automático da bomba." },
     ],
   }),
   component: HomePage,
@@ -32,47 +39,33 @@ function useDiff(paramKey: ParameterKey): number {
   }, [history, paramKey, value]);
 }
 
-// Série recente (últimas ~N leituras válidas) para o mini-histórico do tile.
-function useTrend(paramKey: ParameterKey, points = 12): number[] {
-  const history = usePoolStore((s) => s.history);
-  const value = usePoolStore((s) => s[paramKey] as number);
-  return useMemo(() => {
-    const recent = history
-      .slice(-points)
-      .map((p) => p[paramKey] as number)
-      .filter((v) => typeof v === "number" && Number.isFinite(v) && v > -990);
-    if (Number.isFinite(value) && value > -990) recent.push(value);
-    return recent;
-  }, [history, paramKey, value, points]);
-}
-
 function HomePage() {
   const ph = usePoolStore((s) => s.ph);
-  const orp = usePoolStore((s) => s.orp);
-  const cond = usePoolStore((s) => s.condutividade);
+  const cloro = usePoolStore((s) => s.cloro);
+  const alc = usePoolStore((s) => s.alcalinidade);
   const tempPool = usePoolStore((s) => s.temp_piscina);
   const tempSolar = usePoolStore((s) => s.temp_coletor);
   const deltaT = usePoolStore((s) => s.delta_t);
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
+  const cloroEmErro = usePoolStore((s) => s.cloroEmErro);
 
   const conn = useConnection();
+  const controlState = useControlState();
+  const dose = useDoseInProgress();
+  const events = useDosingEvents();
 
   // Loading = ainda não recebemos nenhuma mensagem MQTT e o store seguiu sua
   // semeadura inicial; mostramos placeholders nos cards principais.
   const loading = conn.source === "none" && conn.lastMessageAt === null;
+  const estopActive = controlState?.estop === true;
 
   const phDiff = useDiff("ph");
-  const orpDiff = useDiff("orp");
-  const condDiff = useDiff("condutividade");
+  const cloroDiff = useDiff("cloro");
+  const alcDiff = useDiff("alcalinidade");
   const tempDiff = useDiff("temp_piscina");
 
-  const phTrend = useTrend("ph");
-  const orpTrend = useTrend("orp");
-  const condTrend = useTrend("condutividade");
-  const tempTrend = useTrend("temp_piscina");
-
   const heroEstado: "circulando" | "parada" | "emergencia" =
-    bombaOn ? "circulando" : "parada";
+    estopActive ? "emergencia" : bombaOn ? "circulando" : "parada";
 
   return (
     <AppShell>
@@ -102,50 +95,51 @@ function HomePage() {
             <h2 id="qualidade-heading" className="font-display text-xl font-semibold tracking-tight text-aqua-text">
               Qualidade da água
             </h2>
-            <p className="text-xs text-aqua-text-muted">Faixas do firmware v2.3</p>
+            <p className="text-xs text-aqua-text-muted">Faixas ABNT NBR 10818</p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <WaterQualityCard
               paramKey="ph"
               value={ph}
               diff={phDiff}
-              trend={phTrend}
               sensorError={isSensorError(ph)}
-              dosing={false}
-              estopActive={false}
+              dosing={dose === "acido" || dose === "base"}
+              estopActive={estopActive}
               loading={loading}
             />
             <WaterQualityCard
-              paramKey="orp"
-              value={orp}
-              diff={orpDiff}
-              trend={orpTrend}
-              sensorError={isSensorError(orp)}
-              dosing={false}
-              estopActive={false}
+              paramKey="cloro"
+              value={cloro}
+              diff={cloroDiff}
+              sensorError={cloroEmErro || isSensorError(cloro)}
+              dosing={dose === "cloro"}
+              estopActive={estopActive}
               loading={loading}
             />
             <WaterQualityCard
-              paramKey="condutividade"
-              value={cond}
-              diff={condDiff}
-              trend={condTrend}
-              sensorError={isSensorError(cond)}
+              paramKey="alcalinidade"
+              value={alc}
+              diff={alcDiff}
+              sensorError={isSensorError(alc)}
               dosing={false}
-              estopActive={false}
+              estopActive={estopActive}
               loading={loading}
             />
             <WaterQualityCard
               paramKey="temp_piscina"
               value={tempPool}
               diff={tempDiff}
-              trend={tempTrend}
               sensorError={isSensorError(tempPool)}
               dosing={false}
-              estopActive={false}
+              estopActive={estopActive}
               loading={loading}
             />
           </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <DosesLast24hCard events={events} dosingNow={dose} estopActive={estopActive} loading={loading} />
+          <ModeCard mode={controlState?.mode ?? null} estopActive={estopActive} loading={loading} />
         </section>
 
         <MqttLog />
