@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { FileDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SolarSystemHero } from "@/components/editorial/SolarSystemHero";
 import { WaterQualityCard } from "@/components/editorial/WaterQualityCard";
 import { MqttLog } from "@/components/MqttLog";
+import { exportDailyReport } from "@/lib/exportDailyReport";
+import { ChlorineEventLog } from "@/components/ChlorineEventLog";
 import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
@@ -48,8 +51,8 @@ function useTrend(paramKey: ParameterKey, points = 12): number[] {
 
 function HomePage() {
   const ph = usePoolStore((s) => s.ph);
-  const orp = usePoolStore((s) => s.orp);
-  const cond = usePoolStore((s) => s.condutividade);
+  const cloro = usePoolStore((s) => s.cloro);
+  const alcalinidade = usePoolStore((s) => s.alcalinidade);
   const tempPool = usePoolStore((s) => s.temp_piscina);
   const tempSolar = usePoolStore((s) => s.temp_coletor);
   const deltaT = usePoolStore((s) => s.delta_t);
@@ -62,13 +65,13 @@ function HomePage() {
   const loading = conn.source === "none" && conn.lastMessageAt === null;
 
   const phDiff = useDiff("ph");
-  const orpDiff = useDiff("orp");
-  const condDiff = useDiff("condutividade");
+  const cloroDiff = useDiff("cloro");
+  const alcalinidadeDiff = useDiff("alcalinidade");
   const tempDiff = useDiff("temp_piscina");
 
   const phTrend = useTrend("ph");
-  const orpTrend = useTrend("orp");
-  const condTrend = useTrend("condutividade");
+  const cloroTrend = useTrend("cloro");
+  const alcalinidadeTrend = useTrend("alcalinidade");
   const tempTrend = useTrend("temp_piscina");
 
   const heroEstado: "circulando" | "parada" | "emergencia" =
@@ -87,6 +90,14 @@ function HomePage() {
               real da piscina — sensores, dosadoras e bomba operam de forma autônoma.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => exportDailyReport()}
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
+          >
+            <FileDown className="h-4 w-4" aria-hidden />
+            Exportar PDF
+          </button>
         </header>
 
         <SolarSystemHero
@@ -116,21 +127,21 @@ function HomePage() {
               loading={loading}
             />
             <WaterQualityCard
-              paramKey="orp"
-              value={orp}
-              diff={orpDiff}
-              trend={orpTrend}
-              sensorError={isSensorError(orp)}
+              paramKey="cloro"
+              value={cloro}
+              diff={cloroDiff}
+              trend={cloroTrend}
+              sensorError={isSensorError(cloro)}
               dosing={false}
               estopActive={false}
               loading={loading}
             />
             <WaterQualityCard
-              paramKey="condutividade"
-              value={cond}
-              diff={condDiff}
-              trend={condTrend}
-              sensorError={isSensorError(cond)}
+              paramKey="alcalinidade"
+              value={alcalinidade}
+              diff={alcalinidadeDiff}
+              trend={alcalinidadeTrend}
+              sensorError={isSensorError(alcalinidade)}
               dosing={false}
               estopActive={false}
               loading={loading}
@@ -147,6 +158,8 @@ function HomePage() {
             />
           </div>
         </section>
+
+        <ChlorineEventLog />
 
         <MqttLog />
       </div>

@@ -21,6 +21,8 @@ describe("SnapshotSchema (aquasense-ibmec-pt/dados)", () => {
   const base = {
     ph: 7.4,
     orp_mv: 700,
+    cloro: 2.5,
+    alcalinidade: 100,
     condutividade_us_cm: 1200,
     temp_piscina: 32.6,
     temp_coletor: 45.2,
@@ -109,11 +111,11 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     expect(d).not.toBeNull();
     if (!d) return;
     expect(d.qualidade_agua.ph).toBe(7.42);
-    expect(d.qualidade_agua.orp_mv).toBe(712);
-    expect(d.qualidade_agua.cond_us).toBe(1180);
+    expect(d.qualidade_agua.cloro).toBe(2.1);
+    expect(d.qualidade_agua.alcalinidade).toBe(118);
     expect(d.qualidade_agua.ph_status).toBe("OK");
-    expect(d.qualidade_agua.orp_status).toBe("OK");
-    expect(d.qualidade_agua.cond_status).toBe("OK");
+    expect(d.qualidade_agua.cloro_status).toBe("OK");
+    expect(d.qualidade_agua.alcalinidade_status).toBe("OK");
     expect(d.temperaturas.piscina_C).toBe(30.5);
     expect(d.temperaturas.coletor_solar_C).toBe(42.8);
     expect(d.temperaturas.delta_T).toBeCloseTo(12.3, 1);
@@ -125,6 +127,8 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     const raw = JSON.stringify({
       ph: 7.4,
       orp_mv: 700,
+      cloro: 2.5,
+      alcalinidade: 100,
       condutividade_us_cm: 1200,
       temp_piscina: 30.5,
       temp_coletor: 42.8,
@@ -140,6 +144,8 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     const raw = JSON.stringify({
       ph: 6.5,
       orp_mv: 800,
+      cloro: 4.0,
+      alcalinidade: 50,
       condutividade_us_cm: 500,
       temp_piscina: 28,
       temp_coletor: 30,
@@ -149,8 +155,8 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     expect(d).not.toBeNull();
     if (!d) return;
     expect(d.qualidade_agua.ph_status).toBe("BAIXO"); // < 7.2
-    expect(d.qualidade_agua.orp_status).toBe("ALTO"); // > 750
-    expect(d.qualidade_agua.cond_status).toBe("BAIXO"); // < 800
+    expect(d.qualidade_agua.cloro_status).toBe("ALTO"); // > 3.0
+    expect(d.qualidade_agua.alcalinidade_status).toBe("BAIXO"); // < 80
     expect(d.controle.bomba).toBe("DESLIGADA");
   });
 
@@ -166,6 +172,8 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     const raw = JSON.stringify({
       ph: -99,
       orp_mv: 700,
+      cloro: 2.5,
+      alcalinidade: 100,
       condutividade_us_cm: 1200,
       temp_piscina: 30,
       temp_coletor: 40,

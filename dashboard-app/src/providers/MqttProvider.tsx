@@ -44,7 +44,7 @@ import {
 } from "@/lib/cycleGaps";
 
 // HiveMQ Cloud (TLS/WSS 8884) — mesmo cluster do firmware (USAR_TLS 1).
-const MQTT_URL = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_URL      = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
 const MQTT_USERNAME = "ProjetoIoT";
 const MQTT_PASSWORD = "IoT12345678";
 const FALLBACK_AFTER_MS = 15_000;
@@ -106,7 +106,8 @@ const BombaEnum = z.union([
 export const SnapshotSchema = z
   .object({
     ph: numInRange(0, 14),
-    orp_mv: numInRange(-2000, 2000),
+    cloro: numInRange(0, 10),
+    alcalinidade: numInRange(0, 200),
     condutividade_us_cm: numInRange(0, 5000),
     temp_piscina: numInRange(-10, 100),
     temp_coletor: numInRange(-10, 150),
@@ -164,8 +165,8 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
     }
     const f = r.data;
     const ph = f.ph;
-    const orp = f.orp_mv;
-    const cond = f.condutividade_us_cm;
+    const cloro = (f as Record<string, unknown>).cloro as number | undefined ?? -99;
+    const alcalinidade = (f as Record<string, unknown>).alcalinidade as number | undefined ?? -99;
     const tPool = f.temp_piscina;
     const tSolar = f.temp_coletor;
     const dT = f.delta_t ?? tSolar - tPool;
@@ -179,10 +180,10 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
       qualidade_agua: {
         ph,
         ph_status: statusFor(ph, 7.2, 7.6),
-        orp_mv: orp,
-        orp_status: statusFor(orp, 650, 750),
-        cond_us: cond,
-        cond_status: statusFor(cond, 800, 1500),
+        cloro,
+        cloro_status: statusFor(cloro, 1.0, 3.0),
+        alcalinidade,
+        alcalinidade_status: statusFor(alcalinidade, 80, 120),
       },
       temperaturas: {
         piscina_C: tPool,

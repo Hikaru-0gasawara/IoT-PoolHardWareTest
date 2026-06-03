@@ -13,7 +13,7 @@ import type { AggregatedAlert, ParameterKey, PoolState, PumpMode, SensorPoint } 
 import type { AquaSenseData } from "@/types/firmware";
 import { isSensorError } from "@/types/firmware";
 import {
-  clamp, decidePump, nextCondutividade, nextOrp, nextPh,
+  clamp, decidePump, nextCloro, nextAlcalinidade, nextPh,
   nextPoolTemp, nextSolarTemp, seedHistory,
 } from "@/lib/simulation";
 import { aggregateStatus, statusFor, THRESHOLDS } from "@/lib/thresholds";
@@ -259,8 +259,8 @@ function buildInitial(): PoolState {
 
   return {
     ph: last.ph,
-    orp: last.orp,
-    condutividade: last.condutividade,
+    cloro: last.cloro,
+    alcalinidade: last.alcalinidade,
     temp_piscina: last.temp_piscina,
     temp_coletor: last.temp_coletor,
     delta_t: last.temp_coletor - last.temp_piscina,
@@ -281,7 +281,34 @@ function buildInitial(): PoolState {
       { t: now.getTime() - 1000 * 60 * 130, ligada: true, motivo: "Auto: ΔT 6.1°C ≥ 5°C → LIGAR" },
     ],
     alerts: initialAlerts,
+    cloroEvents: [],
     lastTickAt: now.getTime(),
+  };
+}
+
+// Detecta cruzamento de faixa do Cloro entre duas leituras consecutivas.
+// Devolve um ChemEvent quando a leitura ENTRA ou SAI da faixa ideal
+// (1.0–3.0 ppm), ou `null` quando não há transição relevante.
+function detectChlorineEvent(prev: number, cur: number, now: number): import("@/types/aquasense").ChemEvent | null {
+  if (isSensorError(prev) || isSensorError(cur)) return null;
+  const prevStatus = statusFor("cloro", prev);
+  const curStatus = statusFor("cloro", cur);
+  const prevOk = prevStatus === "ok";
+  const curOk = curStatus === "ok";
+  if (prevOk === curOk) return null; // sem cruzamento de faixa
+  const t = THRESHOLDS.cloro;
+  const direcao: "baixo" | "alto" | "ideal" = curOk
+    ? "ideal"
+    : cur < t.idealMin
+      ? "baixo"
+      : "alto";
+  return {
+    t: now,
+    parametro: "cloro",
+    tipo: curOk ? "entrou_faixa" : "saiu_faixa",
+    direcao,
+    valor: cur,
+    severity: curStatus,
   };
 }
 
@@ -354,8 +381,8 @@ export const usePoolStore = create<Store>((set, get) => ({
     const ctrl = d.controle;
 
     const ph = wq.ph;
-    const orp = wq.orp_mv;
-    const condutividade = wq.cond_us;
+    const cloro = wq.cloro;
+    const alcalinidade = wq.alcalinidade;
     const temp_piscina = tp.piscina_C;
     const temp_coletor = tp.coletor_solar_C;
     const delta_t = typeof tp.delta_T === "number" ? tp.delta_T : (temp_coletor - temp_piscina);
@@ -380,8 +407,8 @@ export const usePoolStore = create<Store>((set, get) => ({
     // mas a lógica de abertura/escalação/resolução vive aqui.
     const aggReadingsRaw: ParamReading[] = [
       { key: "ph" as ParameterKey, value: ph },
-      { key: "orp" as ParameterKey, value: orp },
-      { key: "condutividade" as ParameterKey, value: condutividade },
+      { key: "cloro" as ParameterKey, value: cloro },
+      { key: "alcalinidade" as ParameterKey, value: alcalinidade },
       { key: "temp_piscina" as ParameterKey, value: temp_piscina },
     ];
     const aggReadings = aggReadingsRaw.filter((r) => !isSensorError(r.value));
@@ -390,12 +417,12 @@ export const usePoolStore = create<Store>((set, get) => ({
 
     // Sparkline (5s) — ignora pontos com erro de sensor
     const validPoint = !isSensorError(temp_piscina) && !isSensorError(temp_coletor)
-      && !isSensorError(ph) && !isSensorError(orp) && !isSensorError(condutividade);
+      && !isSensorError(ph) && !isSensorError(cloro) && !isSensorError(alcalinidade);
     let liveHistory = s.liveHistory;
     let history = s.history;
     if (validPoint) {
       const point: SensorPoint = {
-        t: now, ph, orp, condutividade, temp_piscina, temp_coletor, bomba_ligada,
+        t: now, ph, cloro, alcalinidade, temp_piscina, temp_coletor, bomba_ligada,
       };
       liveHistory = [...s.liveHistory, point].slice(-SIM.LIVE_HISTORY_MAX);
       // Para dados reais via MQTT, adicionamos cada amostra ao histórico
@@ -407,15 +434,22 @@ export const usePoolStore = create<Store>((set, get) => ({
       }
     }
 
-    const status_geral = aggregateStatus({ ph, orp, condutividade, temp_piscina });
+    const status_geral = aggregateStatus({ ph, cloro, alcalinidade, temp_piscina });
+
+    // Eventos discretos de cruzamento de faixa do Cloro (1.0–3.0 ppm).
+    const cloroEvt = detectChlorineEvent(s.cloro, cloro, now);
+    const cloroEvents = cloroEvt
+      ? [cloroEvt, ...s.cloroEvents].slice(0, POOL.CLORO_EVENT_MAX)
+      : s.cloroEvents;
 
     set({
-      ph, orp, condutividade, temp_piscina, temp_coletor, delta_t,
+      ph, cloro, alcalinidade, temp_piscina, temp_coletor, delta_t,
       bomba_ligada,
       ultima_mudanca_bomba_t: ultima_mudanca,
       bomba_estado_desde_t: estado_desde,
       pumpLog, liveHistory, history,
       alerts: nextAlerts,
+      cloroEvents,
       status_geral,
       ultima_atualizacao_t: now,
       lastTickAt: now,
@@ -462,16 +496,16 @@ export const usePoolStore = create<Store>((set, get) => ({
       const temp_piscina = nextPoolTemp(s.temp_piscina, bomba_ligada, dtPre, date.getHours());
       const delta_t = temp_coletor - temp_piscina;
 
-      // Químicos / parâmetros de água (firmware v2.3: pH, ORP, condutividade)
+      // Químicos / parâmetros de água (firmware v3.1: pH, cloro, alcalinidade)
       const ph = nextPh(s.ph);
-      const orp = nextOrp(s.orp);
-      const condutividade = nextCondutividade(s.condutividade);
+      const cloro = nextCloro(s.cloro);
+      const alcalinidade = nextAlcalinidade(s.alcalinidade);
 
       // Alertas agregados — máquina de estado 3 ciclos abre / 5 fecha
       const aggReadings: ParamReading[] = [
         { key: "ph", value: ph },
-        { key: "orp", value: orp },
-        { key: "condutividade", value: condutividade },
+        { key: "cloro", value: cloro },
+        { key: "alcalinidade", value: alcalinidade },
         { key: "temp_piscina", value: temp_piscina },
       ];
       const aggOut = processAggregatedAlertsWithStats(s.alerts, aggReadings, now);
@@ -479,7 +513,7 @@ export const usePoolStore = create<Store>((set, get) => ({
 
       // Update liveHistory (5s)
       const live = [...s.liveHistory, {
-        t: now, ph, orp, condutividade,
+        t: now, ph, cloro, alcalinidade,
         temp_piscina, temp_coletor, bomba_ligada,
       }].slice(-SIM.LIVE_HISTORY_MAX);
 
@@ -488,21 +522,28 @@ export const usePoolStore = create<Store>((set, get) => ({
       const lastH = history[history.length - 1];
       if (!lastH || now - lastH.t >= SIM.HISTORY_STEP_MS) {
         history = [...history, {
-          t: now, ph, orp, condutividade,
+          t: now, ph, cloro, alcalinidade,
           temp_piscina, temp_coletor, bomba_ligada,
         }].slice(-SIM.HISTORY_MAX);
       }
 
-      const status_geral = aggregateStatus({ ph, orp, condutividade, temp_piscina });
+      const status_geral = aggregateStatus({ ph, cloro, alcalinidade, temp_piscina });
+
+      // Eventos discretos de cruzamento de faixa do Cloro (1.0–3.0 ppm).
+      const cloroEvt = detectChlorineEvent(s.cloro, cloro, now);
+      const cloroEvents = cloroEvt
+        ? [cloroEvt, ...s.cloroEvents].slice(0, POOL.CLORO_EVENT_MAX)
+        : s.cloroEvents;
 
       set({
-        ph, orp, condutividade, temp_piscina, temp_coletor,
+        ph, cloro, alcalinidade, temp_piscina, temp_coletor,
         delta_t, bomba_ligada,
         ultima_mudanca_bomba_t: ultima_mudanca,
         bomba_estado_desde_t: estado_desde,
         pumpLog,
         liveHistory: live, history,
         alerts: nextAlerts,
+        cloroEvents,
         status_geral,
         ultima_atualizacao_t: now,
         uptime_s: s.uptime_s + 5,

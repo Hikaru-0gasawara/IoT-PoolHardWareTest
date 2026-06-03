@@ -36,7 +36,7 @@ const CHEMICALS: ReadonlyArray<{
   tone: "danger" | "warn";
   icon: React.ReactNode;
   /** Parâmetro do `data` que precisa estar válido para liberar dose */
-  sensorPath: "orp_mv" | "ph";
+  sensorPath: "cloro" | "ph";
 }> = [
   {
     key: "cloro",
@@ -44,7 +44,7 @@ const CHEMICALS: ReadonlyArray<{
     subtitle: "Bomba peristáltica · GPIO 25",
     tone: "danger",
     icon: <Droplets className="h-4 w-4" />,
-    sensorPath: "orp_mv",
+    sensorPath: "cloro",
   },
   {
     key: "acido",
@@ -430,9 +430,9 @@ function LivePanel() {
       const value =
         meta.sensorPath === "ph"
           ? data.qualidade_agua.ph
-          : data.qualidade_agua.orp_mv;
+          : data.qualidade_agua.cloro;
       if (isSensorError(value)) {
-        return `Sensor de ${meta.sensorPath === "ph" ? "pH" : "ORP"} com erro — dose bloqueada`;
+        return `Sensor de ${meta.sensorPath === "ph" ? "pH" : "cloro"} com erro — dose bloqueada`;
       }
     }
     return null;

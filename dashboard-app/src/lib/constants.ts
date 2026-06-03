@@ -16,4 +16,5 @@ export const POOL = {
   SETPOINT_MAX: 35,
   PUMP_LOG_MAX: 20,
   ALERT_MAX: 50,
+  CLORO_EVENT_MAX: 30,
 } as const;

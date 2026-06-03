@@ -96,22 +96,20 @@ export function condToAdc(condUs: number): number {
   return (lo + hi) / 2;
 }
 
-// ORP (mV) — random walk no ADC bruto com viés para o centro (700 mV),
-// convertido para mV pela fórmula do firmware.
-export function nextOrp(prev: number): number {
-  const adcPrev = orpToAdc(prev);
-  const adcCenter = orpToAdc(700);
-  const adcNext = adcPrev + (adcCenter - adcPrev) * 0.04 + noise(8);
-  return clamp(orpFromAdc(adcNext), 620, 780);
+// Cloro (ppm) — random walk com viés para o centro da faixa ideal (2.0 ppm).
+export function nextCloro(prev: number): number {
+  const center = 2.0;
+  const meanReversion = (center - prev) * 0.03;
+  const next = prev + meanReversion + noise(0.08);
+  return clamp(next, 0.2, 6.0);
 }
 
-// Condutividade (µS/cm) — random walk no ADC bruto com viés para ~1150 µS/cm,
-// convertido para µS/cm pela curva do sensor.
-export function nextCondutividade(prev: number): number {
-  const adcPrev = condToAdc(prev);
-  const adcCenter = condToAdc(1150);
-  const adcNext = adcPrev + (adcCenter - adcPrev) * 0.02 + noise(12);
-  return clamp(condFromAdc(adcNext), 800, 1500);
+// Alcalinidade (ppm) — random walk com viés para o centro da faixa ideal (100 ppm).
+export function nextAlcalinidade(prev: number): number {
+  const center = 100;
+  const meanReversion = (center - prev) * 0.02;
+  const next = prev + meanReversion + noise(2);
+  return clamp(next, 40, 160);
 }
 
 // Próxima temperatura do coletor com nuvens ocasionais
@@ -172,8 +170,8 @@ export function seedHistory(now: Date): SensorPoint[] {
   const STEP_MS = 5 * 60 * 1000;
   const N = 288;
   let ph = 7.4;
-  let orp = 700;
-  let cond = 1150;
+  let cloro = 2.0;
+  let alcalinidade = 100;
   let pool = 28.7;
   let solar = solarBaseTempAt(new Date(now.getTime() - N * STEP_MS));
   let bomba = false;
@@ -191,14 +189,14 @@ export function seedHistory(now: Date): SensorPoint[] {
     else if (dt <= 1 && t - lastChange > 60_000 && bomba) { bomba = false; lastChange = t; }
     pool = nextPoolTemp(pool, bomba, dt, d.getHours());
     ph = nextPh(ph);
-    orp = nextOrp(orp);
-    cond = nextCondutividade(cond);
+    cloro = nextCloro(cloro);
+    alcalinidade = nextAlcalinidade(alcalinidade);
 
     points.push({
       t,
       ph: Number(ph.toFixed(2)),
-      orp: Number(orp.toFixed(0)),
-      condutividade: Number(cond.toFixed(0)),
+      cloro: Number(cloro.toFixed(1)),
+      alcalinidade: Number(alcalinidade.toFixed(0)),
       temp_piscina: Number(pool.toFixed(2)),
       temp_coletor: Number(solar.toFixed(2)),
       bomba_ligada: bomba,

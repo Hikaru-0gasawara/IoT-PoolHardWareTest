@@ -13,8 +13,8 @@ export interface TooltipLines {
 
 function decimalsFor(paramKey: ParameterKey): number {
   if (paramKey === "ph") return 2;
-  if (paramKey === "orp") return 0;
-  if (paramKey === "condutividade") return 0;
+  if (paramKey === "cloro") return 1;
+  if (paramKey === "alcalinidade") return 0;
   return 1; // temperaturas
 }
 
@@ -73,8 +73,17 @@ export function describeTrend(values: number[], paramKey: ParameterKey): TrendDe
   const max = Math.max(...clean);
   const variation = max - min;
 
-  // < 5% da amplitude da faixa ideal = estável.
-  if (variation < idealAmplitude * 0.05) return "estável";
+  // <= 5% da amplitude da faixa ideal = estável.
+  // +1e-9 absorve erro de ponto flutuante em subtrações como 7.41-7.39.
+  if (variation <= idealAmplitude * 0.05 + 1e-9) return "estável";
+
+  // Conta reversões de sinal nas diferenças consecutivas.
+  // >= 40% dos pares revertendo = oscilação (ex: [7.3,7.5,7.3,7.5,7.3,7.5]).
+  let reversals = 0;
+  for (let i = 1; i < clean.length - 1; i++) {
+    if ((clean[i] - clean[i - 1]) * (clean[i + 1] - clean[i]) < 0) reversals++;
+  }
+  if (clean.length > 2 && reversals / (clean.length - 2) >= 0.4) return "oscilando";
 
   const first = clean[0];
   const last = clean[clean.length - 1];

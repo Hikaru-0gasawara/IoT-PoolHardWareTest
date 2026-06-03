@@ -14,10 +14,10 @@ function buildFromStore(): AquaSenseData {
   const wq: WaterQuality = {
     ph: s.ph,
     ph_status: s.ph < 7.2 ? "BAIXO" : s.ph > 7.6 ? "ALTO" : "OK",
-    orp_mv: s.orp,
-    orp_status: s.orp < 650 ? "BAIXO" : s.orp > 750 ? "ALTO" : "OK",
-    cond_us: s.condutividade,
-    cond_status: s.condutividade < 800 ? "BAIXO" : s.condutividade > 1500 ? "ALTO" : "OK",
+    cloro: s.cloro,
+    cloro_status: s.cloro < 1.0 ? "BAIXO" : s.cloro > 3.0 ? "ALTO" : "OK",
+    alcalinidade: s.alcalinidade,
+    alcalinidade_status: s.alcalinidade < 80 ? "BAIXO" : s.alcalinidade > 120 ? "ALTO" : "OK",
   };
   const tp: Temperatures = {
     piscina_C: s.temp_piscina,

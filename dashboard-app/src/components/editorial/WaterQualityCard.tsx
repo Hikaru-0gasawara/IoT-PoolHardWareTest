@@ -73,15 +73,15 @@ const DRIFT_COPY: Record<ParameterKey, { up: string; down: string; flat: string 
     down: "Tendendo a ácido — observe nas próximas leituras.",
     flat: "Estável dentro da faixa do firmware.",
   },
-  orp: {
-    up: "ORP subindo — maior poder de oxidação.",
-    down: "ORP caindo — desinfecção enfraquecendo.",
-    flat: "ORP estável — desinfecção adequada.",
+  cloro: {
+    up: "Cloro subindo — maior poder de desinfecção.",
+    down: "Cloro caindo — desinfecção enfraquecendo.",
+    flat: "Cloro estável — desinfecção adequada.",
   },
-  condutividade: {
-    up: "Condutividade subindo — mais sais dissolvidos.",
-    down: "Condutividade caindo — diluição recente.",
-    flat: "Condutividade estável.",
+  alcalinidade: {
+    up: "Alcalinidade subindo — buffer aumentando.",
+    down: "Alcalinidade caindo — buffer diminuindo.",
+    flat: "Alcalinidade estável.",
   },
   temp_piscina: {
     up: "Aquecendo — ganho solar efetivo.",
@@ -100,7 +100,7 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
   const t = THRESHOLDS[paramKey];
   const status = sensorError ? "crit" : statusFor(paramKey, value);
   const sColor = statusColor(status);
-  const decimals = paramKey === "ph" ? 2 : paramKey === "orp" || paramKey === "condutividade" ? 0 : 1;
+  const decimals = paramKey === "ph" ? 2 : paramKey === "cloro" ? 1 : paramKey === "alcalinidade" ? 0 : 1;
   const pos = Math.max(2, Math.min(98, ((value - t.rangeMin) / (t.rangeMax - t.rangeMin)) * 100));
 
   const drift = DRIFT_COPY[paramKey];

@@ -25,6 +25,9 @@ export const MQTT_TOPICS = {
   PISCINA_PH: `${MQTT_NAMESPACE}/piscina/ph`,
   PISCINA_CLORO: `${MQTT_NAMESPACE}/piscina/cloro`,
   PISCINA_ALCALINIDADE: `${MQTT_NAMESPACE}/piscina/alcalinidade`,
+  // Leitura granular de condutividade (firmware v3.1). Informativa no log;
+  // o valor de verdade da UI vem de `condutividade_us_cm` em `.../dados`.
+  PISCINA_CONDUTIVIDADE: `${MQTT_NAMESPACE}/piscina/condutividade`,
   PISCINA_TEMP: `${MQTT_NAMESPACE}/piscina/temperatura`,
   COLETOR_TEMP: `${MQTT_NAMESPACE}/coletor/temperatura`,
   COLETOR_BOMBA: `${MQTT_NAMESPACE}/coletor/bomba`,
@@ -51,6 +54,7 @@ export const PUBLISHED_TOPICS: readonly MqttTopic[] = [
   MQTT_TOPICS.PISCINA_PH,
   MQTT_TOPICS.PISCINA_CLORO,
   MQTT_TOPICS.PISCINA_ALCALINIDADE,
+  MQTT_TOPICS.PISCINA_CONDUTIVIDADE,
   MQTT_TOPICS.PISCINA_TEMP,
   MQTT_TOPICS.COLETOR_TEMP,
   MQTT_TOPICS.COLETOR_BOMBA,

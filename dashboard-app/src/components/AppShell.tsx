@@ -178,13 +178,13 @@ export function Header() {
             aria-label="Abrir configurações"
             title="Configurações"
             className={cn(
-              "ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors md:hidden",
+              "ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors lg:hidden",
               location.pathname.startsWith("/config")
                 ? "border-aqua-accent/40 bg-aqua-accent/10 text-aqua-accent"
                 : "border-aqua-border bg-aqua-surface text-aqua-text-muted hover:text-aqua-text",
             )}
           >
-            <Settings className="h-5 w-5 md:h-4 md:w-4" />
+            <Settings className="h-5 w-5 lg:h-4 lg:w-4" />
           </Link>
         </div>
       </div>

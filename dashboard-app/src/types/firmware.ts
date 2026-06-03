@@ -10,10 +10,10 @@ export type LedStatus = "ACESO" | "APAGADO";
 export interface WaterQuality {
   ph: number;
   ph_status: WaterStatus;
-  orp_mv: number;
-  orp_status: WaterStatus;
-  cond_us: number;
-  cond_status: WaterStatus;
+  cloro: number;
+  cloro_status: WaterStatus;
+  alcalinidade: number;
+  alcalinidade_status: WaterStatus;
 }
 
 export interface Temperatures {
