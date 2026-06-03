@@ -1,5 +1,5 @@
 // ============================================================================
-//  AquaSense IoT - ESP32  |  v3.0  (protocolo PT — dashboard-app)
+//  AquaSense IoT - ESP32  |  v3.1  (protocolo PT — dashboard-app)
 //  Monitoramento de qualidade da agua + controle de bomba do coletor solar
 //  IBMEC Sao Paulo / Invivio Tecnologia Ltda
 //  Prof. Marcel Stefan Wagner, PhD
@@ -9,6 +9,14 @@
 //    - Topico consolidado (fonte de verdade da UI): ".../dados" (JSON flat)
 //    - Topicos granulares informativos + saude + estado de controle
 //    - Recebe comandos do dashboard: ".../controle/modo" e ".../dosagem/comando"
+//
+//  NOVO em v3.1 — alinhamento com o dashboard que exibe pH / ORP / condutividade:
+//    - Adiciona leitura de CONDUTIVIDADE (uS/cm) e o campo "condutividade_us_cm"
+//      no payload consolidado. O dashboard EXIGE este campo (Zod) — sem ele,
+//      todo o payload e rejeitado e a UI cai na simulacao local.
+//    - O cloro livre passa a ser DERIVADO do ORP+pH (equacao de Nernst
+//      simplificada) e a alcalinidade DERIVADA da condutividade. Esses valores
+//      continuam alimentando LCD, topicos granulares e a skill Alexa.
 //
 //  GOTCHA #1 - Broker: o dashboard conecta em broker.hivemq.com:8884 (WSS).
 //    Para os dois conversarem, o ESP32 precisa estar no MESMO broker.
@@ -22,8 +30,8 @@
 //  Mapeamento de pinos:
 //     D4  -> LED 1   (pH fora da faixa)
 //     D5  -> LED Wi-Fi (status da conexao)
-//     D18 -> LED 2   (cloro/ORP fora da faixa)
-//     D19 -> LED 3   (alcalinidade fora da faixa)
+//     D18 -> LED 2   (ORP fora da faixa — poder sanitizante)
+//     D19 -> LED 3   (condutividade fora da faixa)
 //     D21 -> LCD SDA (I2C)
 //     D22 -> LCD SCL (I2C)
 //     D26 -> Rele    (bomba do coletor solar)
@@ -100,6 +108,7 @@ const char* TOPIC_DADOS          = NS "/dados";                 // consolidado (
 const char* TOPIC_PISC_PH        = NS "/piscina/ph";
 const char* TOPIC_PISC_CLORO     = NS "/piscina/cloro";
 const char* TOPIC_PISC_ALC       = NS "/piscina/alcalinidade";
+const char* TOPIC_PISC_COND      = NS "/piscina/condutividade";
 const char* TOPIC_PISC_TEMP      = NS "/piscina/temperatura";
 const char* TOPIC_COLE_TEMP      = NS "/coletor/temperatura";
 const char* TOPIC_COLE_BOMBA     = NS "/coletor/bomba";
@@ -132,10 +141,14 @@ const float         DELTA_DESLIGAR_C       = 1.0f;
 const unsigned long ANTI_CYCLING_MS        = 60000UL;
 const unsigned long DOSE_DURACAO_MS        = 8000UL;   // duracao simulada de uma dosagem
 
-// Faixas ideais (ABNT NBR 10818) — mesmas do dashboard (thresholds.ts).
-const float PH_MIN   = 7.2f,  PH_MAX   = 7.6f;
-const float CLORO_MIN = 1.0f, CLORO_MAX = 3.0f;
-const float ALC_MIN  = 80.0f, ALC_MAX  = 120.0f;
+// Faixas ideais — mesmas do dashboard (thresholds.ts).
+// O dashboard v2.0 exibe pH / ORP / condutividade; LEDs e alertas seguem essas faixas.
+const float PH_MIN   = 7.2f,   PH_MAX   = 7.6f;     // ABNT NBR 10818
+const float ORP_MIN  = 650.0f, ORP_MAX  = 750.0f;   // mV — poder sanitizante
+const float COND_MIN = 800.0f, COND_MAX = 1500.0f;  // uS/cm — solidos dissolvidos
+// Faixas dos valores DERIVADos (cloro/alcalinidade) — usadas no LCD e Alexa.
+const float CLORO_MIN = 1.0f,  CLORO_MAX = 3.0f;    // ppm
+const float ALC_MIN  = 80.0f,  ALC_MAX  = 120.0f;   // ppm CaCO3
 
 const unsigned long WIFI_RETRY_MS = 10000UL;
 const unsigned long MQTT_RETRY_MS = 5000UL;
@@ -155,10 +168,10 @@ bool          primeiroCiclo      = true;
 
 // Leituras atuais.
 static float g_ph     = 7.4f;
-static float g_orp    = 700.0f;
-static float g_cond   = 1000.0f;  // condutividade (uS/cm)
-static float g_cloro  = 2.0f;     // derivado do ORP
-static float g_alc    = 100.0f;   // derivado da condutividade
+static float g_orp    = 700.0f;    // mV  — sensor (sanitizacao)
+static float g_cond   = 1000.0f;   // uS/cm — sensor (solidos dissolvidos)
+static float g_cloro  = 2.0f;      // ppm — DERIVADO de ORP+pH
+static float g_alc    = 100.0f;    // ppm — DERIVADO da condutividade
 static float g_tPisc  = 28.0f;
 static float g_tSolar = 30.0f;
 static float g_umid   = 65.0f;
@@ -170,22 +183,22 @@ char g_doseEmAndamento[8] = "";              // "" = null | "cloro" | "acido" | 
 
 // ============================================================================
 //  SIMULACAO DOS SENSORES (literais float — sem promocao a double)
+//  Em hardware real, troque estas funcoes pela leitura analogica calibrada.
 // ============================================================================
-float lerPH()             { return 7.4f    + sinf(millis() / 30000.0f) * 0.2f;  }  // 7.2 – 7.6
-float lerORP()            { return 700.0f  + sinf(millis() / 25000.0f) * 60.0f; }  // 640 – 760 mV
-float lerCondutividade()  { return 1000.0f + sinf(millis() / 40000.0f) * 180.0f;}  // 820 – 1180 uS/cm
-float lerTempPiscina()    { return 28.0f   + sinf(millis() / 60000.0f) * 2.0f;  }
-float lerTempSolar()      { return 30.0f   + sinf(millis() / 45000.0f) * 9.0f;  }
-float lerUmidade()        { return 65.0f   + sinf(millis() / 50000.0f) * 10.0f; }
+float lerPH()            { return 7.4f   + sinf(millis() / 30000.0f) * 0.2f;   }  // 7.2 – 7.6
+float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f;  }  // 640 – 760 mV
+float lerCondutividade() { return 1000.0f+ sinf(millis() / 40000.0f) * 180.0f; }  // 820 – 1180 uS/cm
+float lerTempPiscina()   { return 28.0f  + sinf(millis() / 60000.0f) * 2.0f;   }
+float lerTempSolar()     { return 30.0f  + sinf(millis() / 45000.0f) * 9.0f;   }
+float lerUmidade()       { return 65.0f  + sinf(millis() / 50000.0f) * 10.0f;  }
 
 // ----------------------------------------------------------------------------
-//  CONVERSOES ELETROQUIMICAS
+//  CONVERSOES FISICO-QUIMICAS (derivam grandezas exibidas a partir dos sensores)
 // ----------------------------------------------------------------------------
 
-// ORP + pH → Cloro livre (ppm)
-// Equacao de Nernst simplificada (empirica, valida para 600–800 mV, pH 6.8–7.8).
-// Referencia: pH 7.4 + ORP 700 mV => ~2.0 ppm Cl livre.
-// Correcao de pH: -59.16 mV por unidade de pH acima de 7.0 (HOCl/OCl- equilibrio).
+// Cloro livre (ppm) a partir do ORP (mV) corrigido pelo pH.
+// Nernst simplificada: cada unidade de pH desloca o ORP efetivo em ~59,16 mV.
+// Calibrado para ORP 700 mV @ pH 7,4 -> ~2,0 ppm (faixa ideal ABNT 1,0–3,0).
 float calcularCloroLivre(float orp_mv, float ph) {
   float orp_eff = orp_mv - (ph - 7.0f) * 59.16f;
   float cl = 2.0f * powf(10.0f, (orp_eff - 676.0f) / 284.0f);
@@ -194,9 +207,9 @@ float calcularCloroLivre(float orp_mv, float ph) {
   return cl;
 }
 
-// Condutividade (uS/cm) → Alcalinidade total (ppm como CaCO3)
-// Agua de piscina: bicarbonato (HCO3-) domina a condutividade.
-// Empirica: 1000 uS/cm ~ 100 ppm; razao 0.10 valida para 700–1400 uS/cm.
+// Alcalinidade total (ppm CaCO3) a partir da condutividade (uS/cm).
+// Razao empirica 0,10 (bicarbonato domina a condutividade da agua de piscina):
+// 1000 uS/cm -> ~100 ppm. Valida na faixa 700–1400 uS/cm.
 float calcularAlcalinidade(float cond_us_cm) {
   float alc = cond_us_cm * 0.10f;
   if (alc < 0.0f)   return 0.0f;
@@ -282,19 +295,20 @@ static int buildAlertas(char* buf, size_t len) {
     buf[pos] = '\0';
   };
 
+  // Alertas seguem os parametros exibidos pelo dashboard: pH, ORP, condutividade.
   if (foraDaFaixa(g_ph, PH_MIN, PH_MAX)) {
     if (n) append(",");
     append("\"pH fora da faixa\"");
     n++;
   }
-  if (foraDaFaixa(g_cloro, CLORO_MIN, CLORO_MAX)) {
+  if (foraDaFaixa(g_orp, ORP_MIN, ORP_MAX)) {
     if (n) append(",");
-    append("\"Cloro fora da faixa\"");
+    append("\"ORP fora da faixa\"");
     n++;
   }
-  if (foraDaFaixa(g_alc, ALC_MIN, ALC_MAX)) {
+  if (foraDaFaixa(g_cond, COND_MIN, COND_MAX)) {
     if (n) append(",");
-    append("\"Alcalinidade fora da faixa\"");
+    append("\"Condutividade fora da faixa\"");
     n++;
   }
 
@@ -354,6 +368,7 @@ static void publicarGranulares() {
   publicarFloat(TOPIC_PISC_PH,   g_ph,    2);
   publicarFloat(TOPIC_PISC_CLORO,g_cloro, 2);
   publicarFloat(TOPIC_PISC_ALC,  g_alc,   1);
+  publicarFloat(TOPIC_PISC_COND, g_cond,  1);
   publicarFloat(TOPIC_PISC_TEMP, g_tPisc, 1);
   publicarFloat(TOPIC_COLE_TEMP, g_tSolar,1);
   if (mqtt.connected()) {
@@ -463,9 +478,10 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
 //  LEDs / BOMBA
 // ----------------------------------------------------------------------------
 void atualizarLEDs() {
-  digitalWrite(PIN_LED_PH,    foraDaFaixa(g_ph,    PH_MIN,    PH_MAX)    ? HIGH : LOW);
-  digitalWrite(PIN_LED_CLORO, foraDaFaixa(g_cloro, CLORO_MIN, CLORO_MAX) ? HIGH : LOW);
-  digitalWrite(PIN_LED_ALC,   foraDaFaixa(g_alc,   ALC_MIN,   ALC_MAX)   ? HIGH : LOW);
+  // LEDs seguem os parametros do dashboard: pH, ORP, condutividade.
+  digitalWrite(PIN_LED_PH,    foraDaFaixa(g_ph,   PH_MIN,   PH_MAX)   ? HIGH : LOW);
+  digitalWrite(PIN_LED_CLORO, foraDaFaixa(g_orp,  ORP_MIN,  ORP_MAX)  ? HIGH : LOW);
+  digitalWrite(PIN_LED_ALC,   foraDaFaixa(g_cond, COND_MIN, COND_MAX) ? HIGH : LOW);
 }
 
 void controlarBomba(float tPiscina, float tSolar) {
@@ -510,8 +526,8 @@ void atualizarLCD() {
 
   char l1[17], l2[17];
   if (!tela) {
-    snprintf(l1, sizeof(l1), "pH%.2f Cl%.1f", g_ph, g_cloro);
-    snprintf(l2, sizeof(l2), "Alc%d B:%s", (int)g_alc, bombaLigada ? "ON" : "OFF");
+    snprintf(l1, sizeof(l1), "pH%.2f ORP%d", g_ph, (int)g_orp);
+    snprintf(l2, sizeof(l2), "Cnd%d B:%s", (int)g_cond, bombaLigada ? "ON" : "OFF");
   } else {
     snprintf(l1, sizeof(l1), "Tp:%.1f%cC", g_tPisc, (char)223);
     snprintf(l2, sizeof(l2), "Ts:%.1f%cC %s", g_tSolar, (char)223, bombaLigada ? "ON" : "OFF");
@@ -707,7 +723,7 @@ void blinkTesteLEDs() {
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println(F("\n=== AquaSense IoT - boot v3.0 (protocolo PT) ==="));
+  Serial.println(F("\n=== AquaSense IoT - boot v3.1 (protocolo PT) ==="));
 
   pinMode(PIN_LED_PH,    OUTPUT);
   pinMode(PIN_LED_CLORO, OUTPUT);
@@ -792,8 +808,8 @@ void loop() {
   g_ph     = lerPH();
   g_orp    = lerORP();
   g_cond   = lerCondutividade();
-  g_cloro  = calcularCloroLivre(g_orp, g_ph);     // ORP + pH → Cl livre
-  g_alc    = calcularAlcalinidade(g_cond);          // condutividade → alcalinidade
+  g_cloro  = calcularCloroLivre(g_orp, g_ph);   // derivado de ORP+pH
+  g_alc    = calcularAlcalinidade(g_cond);      // derivado da condutividade
   g_tPisc  = lerTempPiscina();
   g_tSolar = lerTempSolar();
   g_umid   = lerUmidade();
@@ -805,8 +821,8 @@ void loop() {
   Serial.print(F("c="));      Serial.print(ciclo);
   Serial.print(F(" pH="));    Serial.print(g_ph, 2);
   Serial.print(F(" ORP="));   Serial.print(g_orp, 0);
-  Serial.print(F(" Cl="));    Serial.print(g_cloro, 2);
   Serial.print(F(" Cond="));  Serial.print(g_cond, 0);
+  Serial.print(F(" Cl="));    Serial.print(g_cloro, 2);
   Serial.print(F(" Alc="));   Serial.print(g_alc, 0);
   Serial.print(F(" Tp="));    Serial.print(g_tPisc, 1);
   Serial.print(F(" Ts="));    Serial.print(g_tSolar, 1);
