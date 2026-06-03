@@ -5,8 +5,8 @@
 import { useMqtt } from "@/providers/MqttProvider";
 import { usePoolStore } from "@/store/poolStore";
 import type {
-  AquaSenseData, ControlStateMessage, DataSource, DoseChemical, DoseEvent,
-  MqttConnectionStatus, PumpState, SystemHealthMessage, Temperatures, WaterQuality,
+  AquaSenseData, DataSource, DosingResponse,
+  MqttConnectionStatus, PumpState, Temperatures, WaterQuality,
 } from "@/types/firmware";
 
 function buildFromStore(): AquaSenseData {
@@ -14,11 +14,10 @@ function buildFromStore(): AquaSenseData {
   const wq: WaterQuality = {
     ph: s.ph,
     ph_status: s.ph < 7.2 ? "BAIXO" : s.ph > 7.6 ? "ALTO" : "OK",
-    cloro_ppm: s.cloro,
-    cloro_status: s.cloro < 1.0 ? "BAIXO" : s.cloro > 3.0 ? "ALTO" : "OK",
-    orp_mv: s.orp_mv,
-    alcalinidade_ppm: s.alcalinidade,
-    alcalinidade_status: s.alcalinidade < 80 ? "BAIXO" : s.alcalinidade > 120 ? "ALTO" : "OK",
+    orp_mv: s.orp,
+    orp_status: s.orp < 650 ? "BAIXO" : s.orp > 750 ? "ALTO" : "OK",
+    cond_us: s.condutividade,
+    cond_status: s.condutividade < 800 ? "BAIXO" : s.condutividade > 1500 ? "ALTO" : "OK",
   };
   const tp: Temperatures = {
     piscina_C: s.temp_piscina,
@@ -92,38 +91,14 @@ export function useConnection(): {
   };
 }
 
-// v4.0 — eventos de dosagem (FIFO 50, mais recente em [0]).
-export function useDosingEvents(): DoseEvent[] {
-  return useMqtt().dosingEvents;
+// Respostas de dosagem recebidas em aquasense-ibmec/alexa/resposta
+// (FIFO, mais recente em [0]).
+export function useDosingResponses(): DosingResponse[] {
+  return useMqtt().dosingResponses;
 }
 
-// v4.0 — estado do controle. Vem do tópico retain `control/state` (chega
-// imediato após subscribe), com fallback para o snapshot embutido em `data`.
-// Razão do fallback: control/state só é re-publicado em mudanças; se o
-// dashboard sobe APÓS o último mode-change e o broker dropou a retained
-// (raro mas acontece), o consumer ainda tem o estado mais recente do `data`.
-export function useControlState(): ControlStateMessage | null {
-  const m = useMqtt();
-  if (m.controlState) return m.controlState;
-  const d = m.data;
-  if (!d || d.mode === undefined || d.estop === undefined) return null;
-  return {
-    mode: d.mode,
-    estop: d.estop,
-    dose_in_progress: d.dose_in_progress ?? null,
-    t: m.lastMessageAt ?? Date.now(),
-  };
-}
-
-// v4.0 — última telemetria técnica. Null = firmware ainda não publicou
-// (placeholders da aba Diagnóstico continuam como "aguardando firmware").
-export function useSystemHealth(): SystemHealthMessage | null {
-  return useMqtt().systemHealth;
-}
-
-// v4.0 — atalho semântico. Centraliza a regra "estamos dosando agora?"
-// para o header / cards de parâmetro. Lê do controlState (mais autoritativo
-// que `data`, pois é evento real e não snapshot 5s atrasado).
-export function useDoseInProgress(): DoseChemical | null {
-  return useControlState()?.dose_in_progress ?? null;
+// Publica um comando de dosagem manual. Throttle de 1s; rejeita quando
+// desconectado. Gera comando_id automaticamente.
+export function usePublishDosingCommand() {
+  return useMqtt().publishDosingCommand;
 }

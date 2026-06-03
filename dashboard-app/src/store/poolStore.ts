@@ -13,7 +13,7 @@ import type { AggregatedAlert, ParameterKey, PoolState, PumpMode, SensorPoint } 
 import type { AquaSenseData } from "@/types/firmware";
 import { isSensorError } from "@/types/firmware";
 import {
-  clamp, decidePump, nextAlcalinidade, nextCloro, nextOrp, nextPh,
+  clamp, decidePump, nextCondutividade, nextOrp, nextPh,
   nextPoolTemp, nextSolarTemp, seedHistory,
 } from "@/lib/simulation";
 import { aggregateStatus, statusFor, THRESHOLDS } from "@/lib/thresholds";
@@ -227,16 +227,10 @@ interface Store extends PoolState {
   // Usado pela aba Controle para mostrar "última há 1h 23m" via useAgora.
   registerDoseCompleted: (chem: "cloro" | "acido" | "base", t: number) => void;
   ultimaDosePorProduto: { cloro: number | null; acido: number | null; base: number | null };
-  // FORK PT (Adição 1) — contador de ciclos consecutivos com cloro=0.0.
-  // Após 3+ ciclos, derivado `cloroEmErro` vira true e UI marca o sensor
-  // como provavelmente quebrado em vez de "preciso dosar mais".
-  _cloroZeroCount: number;
-  cloroEmErro: boolean;
   // Contadores de sessão acumulados (não persistidos).
   sessionAlertsOpened: number;
   sessionAlertsEscalated: number;
   sessionAlertsResolved: number;
-  _ticksSinceDose: number;
   _cloudLeft: number;
   _started: boolean;
   _intervalId: ReturnType<typeof setInterval> | null;
@@ -265,9 +259,8 @@ function buildInitial(): PoolState {
 
   return {
     ph: last.ph,
-    cloro: last.cloro,
-    orp_mv: 710,
-    alcalinidade: last.alcalinidade,
+    orp: last.orp,
+    condutividade: last.condutividade,
     temp_piscina: last.temp_piscina,
     temp_coletor: last.temp_coletor,
     delta_t: last.temp_coletor - last.temp_piscina,
@@ -298,8 +291,6 @@ export const usePoolStore = create<Store>((set, get) => ({
   sessionAlertsEscalated: 0,
   sessionAlertsResolved: 0,
   ultimaDosePorProduto: { cloro: null, acido: null, base: null },
-  _cloroZeroCount: 0,
-  cloroEmErro: false,
   _ticksSinceDose: 0,
   _cloudLeft: 0,
   _started: false,
@@ -363,9 +354,8 @@ export const usePoolStore = create<Store>((set, get) => ({
     const ctrl = d.controle;
 
     const ph = wq.ph;
-    const cloro = wq.cloro_ppm;
-    const orp_mv = wq.orp_mv;
-    const alcalinidade = wq.alcalinidade_ppm;
+    const orp = wq.orp_mv;
+    const condutividade = wq.cond_us;
     const temp_piscina = tp.piscina_C;
     const temp_coletor = tp.coletor_solar_C;
     const delta_t = typeof tp.delta_T === "number" ? tp.delta_T : (temp_coletor - temp_piscina);
@@ -390,8 +380,8 @@ export const usePoolStore = create<Store>((set, get) => ({
     // mas a lógica de abertura/escalação/resolução vive aqui.
     const aggReadingsRaw: ParamReading[] = [
       { key: "ph" as ParameterKey, value: ph },
-      { key: "cloro" as ParameterKey, value: cloro },
-      { key: "alcalinidade" as ParameterKey, value: alcalinidade },
+      { key: "orp" as ParameterKey, value: orp },
+      { key: "condutividade" as ParameterKey, value: condutividade },
       { key: "temp_piscina" as ParameterKey, value: temp_piscina },
     ];
     const aggReadings = aggReadingsRaw.filter((r) => !isSensorError(r.value));
@@ -400,35 +390,27 @@ export const usePoolStore = create<Store>((set, get) => ({
 
     // Sparkline (5s) — ignora pontos com erro de sensor
     const validPoint = !isSensorError(temp_piscina) && !isSensorError(temp_coletor)
-      && !isSensorError(ph) && !isSensorError(cloro) && !isSensorError(alcalinidade);
+      && !isSensorError(ph) && !isSensorError(orp) && !isSensorError(condutividade);
     let liveHistory = s.liveHistory;
     let history = s.history;
     if (validPoint) {
       const point: SensorPoint = {
-        t: now, ph, cloro, alcalinidade, temp_piscina, temp_coletor, bomba_ligada,
+        t: now, ph, orp, condutividade, temp_piscina, temp_coletor, bomba_ligada,
       };
       liveHistory = [...s.liveHistory, point].slice(-SIM.LIVE_HISTORY_MAX);
       // Para dados reais via MQTT, adicionamos cada amostra ao histórico
       // imediatamente (sem o gate de 5 min usado pela simulação local) — assim
       // os gráficos avançam em tempo real conforme o ESP32 publica.
-      // Evita duplicar pontos se vier mais de uma mensagem no mesmo segundo.
       const lastH = history[history.length - 1];
       if (!lastH || now - lastH.t >= 1000) {
         history = [...history, point].slice(-SIM.HISTORY_MAX);
       }
     }
 
-    const status_geral = aggregateStatus({ ph, cloro, alcalinidade, temp_piscina });
-
-    // FORK PT (Adição 1) — Cloro 0.0 ppm como erro de sensor.
-    // Após 3 ciclos consecutivos com cloro <= 0.05, marca o sensor como
-    // suspeito (provavelmente quebrado, não "preciso dosar mais").
-    const cloroIsZero = !isSensorError(cloro) && cloro <= 0.05;
-    const novoCount = cloroIsZero ? s._cloroZeroCount + 1 : 0;
-    const cloroEmErro = novoCount >= 3;
+    const status_geral = aggregateStatus({ ph, orp, condutividade, temp_piscina });
 
     set({
-      ph, cloro, orp_mv, alcalinidade, temp_piscina, temp_coletor, delta_t,
+      ph, orp, condutividade, temp_piscina, temp_coletor, delta_t,
       bomba_ligada,
       ultima_mudanca_bomba_t: ultima_mudanca,
       bomba_estado_desde_t: estado_desde,
@@ -437,8 +419,6 @@ export const usePoolStore = create<Store>((set, get) => ({
       status_geral,
       ultima_atualizacao_t: now,
       lastTickAt: now,
-      _cloroZeroCount: novoCount,
-      cloroEmErro,
       sessionAlertsOpened: s.sessionAlertsOpened + aggOut.stats.opened,
       sessionAlertsEscalated: s.sessionAlertsEscalated + aggOut.stats.escalations,
       sessionAlertsResolved: s.sessionAlertsResolved + aggOut.stats.resolved,
@@ -482,17 +462,16 @@ export const usePoolStore = create<Store>((set, get) => ({
       const temp_piscina = nextPoolTemp(s.temp_piscina, bomba_ligada, dtPre, date.getHours());
       const delta_t = temp_coletor - temp_piscina;
 
-      // Químicos
+      // Químicos / parâmetros de água (firmware v2.3: pH, ORP, condutividade)
       const ph = nextPh(s.ph);
-      const orp_mv = nextOrp(s.orp_mv);
-      const cloroOut = nextCloro(s.cloro, date.getHours(), s._ticksSinceDose);
-      const alcalinidade = nextAlcalinidade(s.alcalinidade);
+      const orp = nextOrp(s.orp);
+      const condutividade = nextCondutividade(s.condutividade);
 
       // Alertas agregados — máquina de estado 3 ciclos abre / 5 fecha
       const aggReadings: ParamReading[] = [
         { key: "ph", value: ph },
-        { key: "cloro", value: cloroOut.value },
-        { key: "alcalinidade", value: alcalinidade },
+        { key: "orp", value: orp },
+        { key: "condutividade", value: condutividade },
         { key: "temp_piscina", value: temp_piscina },
       ];
       const aggOut = processAggregatedAlertsWithStats(s.alerts, aggReadings, now);
@@ -500,7 +479,7 @@ export const usePoolStore = create<Store>((set, get) => ({
 
       // Update liveHistory (5s)
       const live = [...s.liveHistory, {
-        t: now, ph, cloro: cloroOut.value, alcalinidade,
+        t: now, ph, orp, condutividade,
         temp_piscina, temp_coletor, bomba_ligada,
       }].slice(-SIM.LIVE_HISTORY_MAX);
 
@@ -509,15 +488,15 @@ export const usePoolStore = create<Store>((set, get) => ({
       const lastH = history[history.length - 1];
       if (!lastH || now - lastH.t >= SIM.HISTORY_STEP_MS) {
         history = [...history, {
-          t: now, ph, cloro: cloroOut.value, alcalinidade,
+          t: now, ph, orp, condutividade,
           temp_piscina, temp_coletor, bomba_ligada,
         }].slice(-SIM.HISTORY_MAX);
       }
 
-      const status_geral = aggregateStatus({ ph, cloro: cloroOut.value, alcalinidade, temp_piscina });
+      const status_geral = aggregateStatus({ ph, orp, condutividade, temp_piscina });
 
       set({
-        ph, cloro: cloroOut.value, orp_mv, alcalinidade, temp_piscina, temp_coletor,
+        ph, orp, condutividade, temp_piscina, temp_coletor,
         delta_t, bomba_ligada,
         ultima_mudanca_bomba_t: ultima_mudanca,
         bomba_estado_desde_t: estado_desde,
@@ -528,7 +507,6 @@ export const usePoolStore = create<Store>((set, get) => ({
         ultima_atualizacao_t: now,
         uptime_s: s.uptime_s + 5,
         lastTickAt: now,
-        _ticksSinceDose: cloroOut.dosed ? 0 : s._ticksSinceDose + 1,
         _cloudLeft: cloudLeft,
         sessionAlertsOpened: s.sessionAlertsOpened + aggOut.stats.opened,
         sessionAlertsEscalated: s.sessionAlertsEscalated + aggOut.stats.escalations,

@@ -1,6 +1,7 @@
 import type { ParameterKey, StatusLevel, Thresholds } from "@/types/aquasense";
 
-// Faixas ABNT NBR 10818 — fonte única de verdade.
+// Faixas alinhadas ao firmware v2.3 — fonte única de verdade.
+// pH 7.2–7.6 | ORP 650–750 mV | condutividade 800–1500 µS/cm.
 export const THRESHOLDS: Record<ParameterKey, Thresholds> = {
   ph: {
     label: "pH",
@@ -13,27 +14,27 @@ export const THRESHOLDS: Record<ParameterKey, Thresholds> = {
     rangeMax: 14,
     color: "var(--param-ph)",
   },
-  cloro: {
-    label: "Cloro livre",
-    unit: "ppm",
-    idealMin: 1.0,
-    idealMax: 3.0,
-    warnMin: 0.6,
-    warnMax: 4.0,
-    rangeMin: 0,
-    rangeMax: 10,
-    color: "var(--param-cloro)",
+  orp: {
+    label: "ORP",
+    unit: "mV",
+    idealMin: 650,
+    idealMax: 750,
+    warnMin: 600,
+    warnMax: 800,
+    rangeMin: 400,
+    rangeMax: 1000,
+    color: "var(--param-orp)",
   },
-  alcalinidade: {
-    label: "Alcalinidade",
-    unit: "ppm",
-    idealMin: 80,
-    idealMax: 120,
-    warnMin: 60,
-    warnMax: 150,
+  condutividade: {
+    label: "Condutividade",
+    unit: "µS/cm",
+    idealMin: 800,
+    idealMax: 1500,
+    warnMin: 600,
+    warnMax: 1800,
     rangeMin: 0,
-    rangeMax: 200,
-    color: "var(--param-alc)",
+    rangeMax: 2500,
+    color: "var(--param-cond)",
   },
   temp_piscina: {
     label: "Temp. Piscina",

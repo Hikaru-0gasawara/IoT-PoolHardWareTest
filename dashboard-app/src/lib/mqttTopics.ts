@@ -1,7 +1,9 @@
 // Fonte única dos tópicos MQTT do projeto.
 //
-// Protocolo PT — namespace `aquasense-ibmec-pt`, idêntico ao `#define NS` do
-// firmware ESP32 (AquaSense.ino v3.1).
+// Alinhado ao firmware ESP32 AquaSense v3.0 (protocolo PT — Arduino/PubSubClient).
+// Namespace: `aquasense-ibmec-pt`. O firmware publica um payload consolidado
+// (retain) em `.../dados`, leituras granulares informativas, telemetria de
+// saúde, estado de controle e eventos de dosagem em `.../dosagem/evento`.
 //
 // Por que existir: typo em qualquer string "aquasense-ibmec-pt/..." espalhada
 // pelos componentes seria invisível pro TypeScript e silenciosamente
@@ -13,52 +15,49 @@ export const MQTT_TOPICS = {
   // Wildcard usado na assinatura — captura tudo abaixo do namespace.
   ALL: `${MQTT_NAMESPACE}/#`,
 
-  // Payload consolidado que o dashboard parseia (fonte de verdade da UI).
-  DATA: `${MQTT_NAMESPACE}/dados`,
+  // Payload consolidado (retain=true) — fonte de verdade da UI.
+  // JSON flat: { projeto, ciclo, ph, orp_mv, cloro, alcalinidade,
+  //   condutividade_us_cm, temp_piscina, temp_coletor, delta_t, umidade,
+  //   bomba, alertas, modo, parada_emergencia, dose_em_andamento }
+  DADOS: `${MQTT_NAMESPACE}/dados`,
 
-  // Tópicos granulares publicados pelo firmware (informativos no log).
-  POOL_PH: `${MQTT_NAMESPACE}/piscina/ph`,
-  POOL_CHLORINE: `${MQTT_NAMESPACE}/piscina/cloro`,
-  POOL_ALKALINITY: `${MQTT_NAMESPACE}/piscina/alcalinidade`,
-  POOL_CONDUCTIVITY: `${MQTT_NAMESPACE}/piscina/condutividade`,
-  POOL_TEMPERATURE: `${MQTT_NAMESPACE}/piscina/temperatura`,
-  SOLAR_TEMPERATURE: `${MQTT_NAMESPACE}/coletor/temperatura`,
-  SOLAR_PUMP: `${MQTT_NAMESPACE}/coletor/bomba`,
-  SYSTEM_ALERTS: `${MQTT_NAMESPACE}/sistema/alertas`,
-  SYSTEM_STATUS: `${MQTT_NAMESPACE}/sistema/status`,
+  // Leituras individuais (floats/strings) — informativas no log.
+  PISCINA_PH: `${MQTT_NAMESPACE}/piscina/ph`,
+  PISCINA_CLORO: `${MQTT_NAMESPACE}/piscina/cloro`,
+  PISCINA_ALCALINIDADE: `${MQTT_NAMESPACE}/piscina/alcalinidade`,
+  PISCINA_TEMP: `${MQTT_NAMESPACE}/piscina/temperatura`,
+  COLETOR_TEMP: `${MQTT_NAMESPACE}/coletor/temperatura`,
+  COLETOR_BOMBA: `${MQTT_NAMESPACE}/coletor/bomba`,
+  SISTEMA_ALERTAS: `${MQTT_NAMESPACE}/sistema/alertas`,
+  SISTEMA_STATUS: `${MQTT_NAMESPACE}/sistema/status`,
+  SISTEMA_SAUDE: `${MQTT_NAMESPACE}/sistema/saude`,
+  CONTROLE_ESTADO: `${MQTT_NAMESPACE}/controle/estado`,
 
-  // Telemetria técnica do firmware (60s). Renomeado: system/health → sistema/saude
-  SYSTEM_HEALTH: `${MQTT_NAMESPACE}/sistema/saude`,
-
-  // Eventos das 3 dosadoras peristálticas (iniciada/concluida/bloqueada).
-  // Fork PT inclui novo campo `fonte` ("automatico" | "manual") em eventos
-  // bloqueada/iniciada para auditoria da origem do comando.
-  DOSING_EVENT: `${MQTT_NAMESPACE}/dosagem/evento`,
-
-  // Estado do controle (modo / E-Stop / dose em andamento) com retain=true,
-  // chega imediato após subscribe. Renomeado: control/state → controle/estado
-  CONTROL_STATE: `${MQTT_NAMESPACE}/controle/estado`,
+  // Evento do firmware após um comando de dosagem.
+  // JSON: { parametro, evento, motivo?, fonte }
+  DOSAGEM_EVENTO: `${MQTT_NAMESPACE}/dosagem/evento`,
 } as const;
 
 export type MqttTopic = typeof MQTT_TOPICS[keyof typeof MQTT_TOPICS];
 
-// Tópicos que o DASHBOARD publica (firmware consome).
-// Renomeados: control/mode → controle/modo, dosing/command → dosagem/comando
-export const TOPIC_CONTROL_MODE = `${MQTT_NAMESPACE}/controle/modo` as const;
+// Tópicos que o DASHBOARD publica (firmware consome via subscribe).
+// dosagem/comando JSON: { parametro, origem, comando_id }
+// controle/modo   JSON: { modo }
 export const TOPIC_DOSING_COMMAND = `${MQTT_NAMESPACE}/dosagem/comando` as const;
+export const TOPIC_CONTROL_MODE = `${MQTT_NAMESPACE}/controle/modo` as const;
 
 // Lista exibida no SettingsPanel — ordem reflete o que o firmware publica.
 export const PUBLISHED_TOPICS: readonly MqttTopic[] = [
-  MQTT_TOPICS.POOL_PH,
-  MQTT_TOPICS.POOL_CHLORINE,
-  MQTT_TOPICS.POOL_ALKALINITY,
-  MQTT_TOPICS.POOL_CONDUCTIVITY,
-  MQTT_TOPICS.POOL_TEMPERATURE,
-  MQTT_TOPICS.SOLAR_TEMPERATURE,
-  MQTT_TOPICS.SOLAR_PUMP,
-  MQTT_TOPICS.SYSTEM_ALERTS,
-  MQTT_TOPICS.SYSTEM_HEALTH,
-  MQTT_TOPICS.CONTROL_STATE,
-  MQTT_TOPICS.DOSING_EVENT,
-  MQTT_TOPICS.DATA,
+  MQTT_TOPICS.PISCINA_PH,
+  MQTT_TOPICS.PISCINA_CLORO,
+  MQTT_TOPICS.PISCINA_ALCALINIDADE,
+  MQTT_TOPICS.PISCINA_TEMP,
+  MQTT_TOPICS.COLETOR_TEMP,
+  MQTT_TOPICS.COLETOR_BOMBA,
+  MQTT_TOPICS.SISTEMA_ALERTAS,
+  MQTT_TOPICS.SISTEMA_STATUS,
+  MQTT_TOPICS.SISTEMA_SAUDE,
+  MQTT_TOPICS.CONTROLE_ESTADO,
+  MQTT_TOPICS.DADOS,
+  MQTT_TOPICS.DOSAGEM_EVENTO,
 ] as const;

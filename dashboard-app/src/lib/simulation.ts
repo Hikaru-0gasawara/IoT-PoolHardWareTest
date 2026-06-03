@@ -2,7 +2,7 @@
 // Roda apenas no provider — NUNCA dentro de componentes.
 
 import type { SensorPoint } from "@/types/aquasense";
-import { SIM, CHLORINE } from "@/lib/constants";
+import { SIM } from "@/lib/constants";
 
 // Padrão diurno do coletor solar (interpolação por hora)
 const SOLAR_CURVE: Array<[number, number]> = [
@@ -48,8 +48,6 @@ export function nextPoolTemp(prev: number, bombaOn: boolean, deltaT: number, hou
 }
 
 // Random walk com viés para o centro da faixa ideal (7.4).
-// Mantém o sistema "tudo OK" como estado dominante. A piscina real é assim:
-// um piscineiro decente mantém o pH centrado e excursões são eventos.
 export function nextPh(prev: number): number {
   const center = 7.4;
   const meanReversion = (center - prev) * 0.05; // puxa devagar para o centro
@@ -57,36 +55,63 @@ export function nextPh(prev: number): number {
   return clamp(next, 7.15, 7.65);
 }
 
-// Cloro — degradação por UV + dosagem periódica, com viés para o centro
-// da faixa ideal (2.0 ppm). Dose só dispara quando cloro caiu abaixo de
-// ~1.4 ppm — evita o pico para 4+ ppm que mantinha alerta crítico permanente.
-export function nextCloro(prev: number, hour: number, ticksSinceDose: number): { value: number; dosed: boolean } {
-  let next = prev;
-  const center = 2.0;
-  const meanReversion = (center - prev) * 0.01;
-  // degradação por UV (pior no meio-dia) — mais branda
-  const uv = Math.max(0, Math.cos(((hour - 13) / 12) * Math.PI));
-  next += meanReversion;
-  next -= uv * 0.003 + 0.0005;
-  next += noise(0.01);
-  let dosed = false;
-  // Dosagem condicional: só repõe se cloro está realmente baixo. Mantém o
-  // intervalo mínimo do cronograma para não dosar a cada tick.
-  if (ticksSinceDose >= CHLORINE.DOSE_INTERVAL_TICKS && next < 1.4) {
-    next += CHLORINE.DOSE_AMOUNT;
-    dosed = true;
+// ─────────────────────────────────────────────────────────────────────
+// Conversão ADC → unidade real (alinhada ao firmware ESP32, 12 bits / 3.3 V).
+// O ESP32 lê uma tensão analógica e converte para a grandeza física antes de
+// publicar. Aqui replicamos essa conversão para que a simulação trabalhe a
+// partir do ADC bruto e exponha os MESMOS valores convertidos do firmware.
+// ─────────────────────────────────────────────────────────────────────
+export const ADC_MAX = 4095; // resolução de 12 bits do ESP32
+export const ADC_VREF = 3.3; // tensão de referência
+
+export function adcToVoltage(adc: number): number {
+  return (clamp(adc, 0, ADC_MAX) * ADC_VREF) / ADC_MAX;
+}
+
+// Sonda ORP analógica: orp(mV) = 1320 - 1000 * V (offset/ganho padrão DFRobot).
+export function orpFromAdc(adc: number): number {
+  return 1320 - 1000 * adcToVoltage(adc);
+}
+
+export function orpToAdc(orpMv: number): number {
+  const voltage = (1320 - orpMv) / 1000;
+  return clamp((voltage / ADC_VREF) * ADC_MAX, 0, ADC_MAX);
+}
+
+// Sensor TDS/condutividade (Gravity TDS): polinômio tensão → µS/cm a 25 °C.
+export function condFromAdc(adc: number): number {
+  const v = adcToVoltage(adc);
+  return 133.42 * v * v * v - 255.86 * v * v + 857.39 * v;
+}
+
+// Inverso numérico (curva monótona em [0, ~2.4] V) por bisseção.
+export function condToAdc(condUs: number): number {
+  let lo = 0;
+  let hi = ADC_MAX;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (condFromAdc(mid) < condUs) lo = mid;
+    else hi = mid;
   }
-  return { value: clamp(next, 0.8, 3.2), dosed };
+  return (lo + hi) / 2;
 }
 
+// ORP (mV) — random walk no ADC bruto com viés para o centro (700 mV),
+// convertido para mV pela fórmula do firmware.
 export function nextOrp(prev: number): number {
-  const next = prev + noise(8);
-  return clamp(next, 620, 780);
+  const adcPrev = orpToAdc(prev);
+  const adcCenter = orpToAdc(700);
+  const adcNext = adcPrev + (adcCenter - adcPrev) * 0.04 + noise(8);
+  return clamp(orpFromAdc(adcNext), 620, 780);
 }
 
-export function nextAlcalinidade(prev: number): number {
-  const next = prev + noise(0.5);
-  return clamp(next, 85, 110);
+// Condutividade (µS/cm) — random walk no ADC bruto com viés para ~1150 µS/cm,
+// convertido para µS/cm pela curva do sensor.
+export function nextCondutividade(prev: number): number {
+  const adcPrev = condToAdc(prev);
+  const adcCenter = condToAdc(1150);
+  const adcNext = adcPrev + (adcCenter - adcPrev) * 0.02 + noise(12);
+  return clamp(condFromAdc(adcNext), 800, 1500);
 }
 
 // Próxima temperatura do coletor com nuvens ocasionais
@@ -147,8 +172,8 @@ export function seedHistory(now: Date): SensorPoint[] {
   const STEP_MS = 5 * 60 * 1000;
   const N = 288;
   let ph = 7.4;
-  let cloro = 2.1;
-  let alc = 95;
+  let orp = 700;
+  let cond = 1150;
   let pool = 28.7;
   let solar = solarBaseTempAt(new Date(now.getTime() - N * STEP_MS));
   let bomba = false;
@@ -166,15 +191,14 @@ export function seedHistory(now: Date): SensorPoint[] {
     else if (dt <= 1 && t - lastChange > 60_000 && bomba) { bomba = false; lastChange = t; }
     pool = nextPoolTemp(pool, bomba, dt, d.getHours());
     ph = nextPh(ph);
-    cloro = clamp(cloro - 0.001 + (Math.random() - 0.5) * 0.04, 0.5, 4);
-    if (i % (12 * 6) === 0) cloro += 0.8; // dosagem aprox a cada 6h
-    alc = nextAlcalinidade(alc);
+    orp = nextOrp(orp);
+    cond = nextCondutividade(cond);
 
     points.push({
       t,
       ph: Number(ph.toFixed(2)),
-      cloro: Number(cloro.toFixed(2)),
-      alcalinidade: Number(alc.toFixed(1)),
+      orp: Number(orp.toFixed(0)),
+      condutividade: Number(cond.toFixed(0)),
       temp_piscina: Number(pool.toFixed(2)),
       temp_coletor: Number(solar.toFixed(2)),
       bomba_ligada: bomba,
