@@ -1,18 +1,16 @@
-// MqttProvider — fonte única de dados em tempo real do ESP32 (main_pt.py).
+// MqttProvider — fonte única de dados em tempo real do ESP32 (firmware v3.0).
 //
-// FORK PT — assina aquasense-ibmec-pt/# (firmware experimental traduzido).
-// Schemas aceitam payload em PT vindo do firmware e fazem transform para
-// identificadores internos EN (DoseEvent.parameter/event, ControlMode "auto"/etc.)
-// para minimizar ripple no resto do código TypeScript.
+// Conecta a wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt e assina aquasense-ibmec-pt/#.
+// Fonte de verdade da UI: o payload consolidado (retain) publicado em
+// aquasense-ibmec-pt/dados. Cada payload é parseado e empurrado para o
+// poolStore via ingestFromMqtt() — toda a UI continua funcionando sem mudanças.
 //
-// Conecta a wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt (HiveMQ Cloud TLS)
-// e parseia o tópico consolidado
-// aquasense-ibmec-pt/dados. Empurra cada amostra para o poolStore via
-// ingestFromMqtt() — assim toda a UI continua funcionando sem mudanças.
+// Comandos de dosagem manual são publicados em aquasense-ibmec-pt/dosagem/comando
+// com payload { parametro, origem, comando_id }. O firmware responde em
+// aquasense-ibmec-pt/dosagem/evento com { parametro, evento, motivo, fonte }.
 //
-// Fallback automático: se ficar 15s sem mensagem real, ativa a simulação local
-// (poolStore._start). Quando MQTT volta a publicar, a simulação para e os dados
-// reais voltam silenciosamente.
+// Fallback automático: se ficar 15s sem snapshot real, ativa a simulação local
+// (poolStore._start). Quando o broker volta a publicar, a simulação para.
 
 import {
   createContext,
@@ -25,25 +23,19 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import mqtt from "mqtt";
-import type { MqttClient } from "mqtt";
 import { z } from "zod";
 import {
   type AquaSenseData,
   type DataSource,
+  type DoseChemical,
+  type DosingResponse,
   type MqttConnectionStatus,
   type MqttContextValue,
   type MqttLogEntry,
   type WaterStatus,
 } from "@/types/firmware";
-import type {
-  ControlMode,
-  ControlStateMessage,
-  DoseChemical,
-  DoseEvent,
-  SystemHealthMessage,
-} from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
-import { MQTT_TOPICS, TOPIC_CONTROL_MODE, TOPIC_DOSING_COMMAND } from "@/lib/mqttTopics";
+import { MQTT_TOPICS, TOPIC_DOSING_COMMAND } from "@/lib/mqttTopics";
 import {
   type GapDetectorState,
   createGapDetector,
@@ -56,8 +48,7 @@ const MQTT_USERNAME = "ProjetoIoT";
 const MQTT_PASSWORD = "IoT12345678";
 const FALLBACK_AFTER_MS = 15_000;
 const LOG_MAX = 50;
-const DOSING_EVENTS_MAX = 50;
-
+const RESPONSES_MAX = 50;
 const COMMAND_THROTTLE_MS = 1000;
 
 const noopAsync = async () => {
@@ -75,12 +66,11 @@ const MqttContext = createContext<MqttContextValue>({
   totalGaps: 0,
   messagesReceivedCount: 0,
   providerMountedAt: 0,
-  dosingEvents: [],
-  controlState: null,
-  systemHealth: null,
-  publishMode: noopAsync,
+  dosingResponses: [],
   publishDosingCommand: noopAsync,
 });
+
+const SENTINEL = -99.0;
 
 function statusFor(value: number, min: number, max: number): WaterStatus {
   if (value <= -50) return "OK"; // erro de sensor — UI trata separado
@@ -89,8 +79,6 @@ function statusFor(value: number, min: number, max: number): WaterStatus {
   return "OK";
 }
 
-// Validação defensiva — broker público aceita qualquer publisher.
-const SENTINEL = -99.0;
 const numInRange = (min: number, max: number) =>
   z
     .number()
@@ -99,125 +87,89 @@ const numInRange = (min: number, max: number) =>
       message: `fora da faixa [${min}, ${max}]`,
     });
 
-// ─────────────────────────────────────────────────────────────────────
-// Enums — wire format PT, traduzidos para identificadores internos EN.
-// Uso de transform mantém o resto do código TS inalterado.
-// ─────────────────────────────────────────────────────────────────────
-
-// Modo: PT "automatico"|"manual"|"parada" → EN "auto"|"manual"|"estop".
-// "estop" é estado interno; firmware PT publica "parada".
-const ModeWireEnum = z.enum(["automatico", "manual", "parada"]);
-const wireModeToInternal = (m: z.infer<typeof ModeWireEnum>): ControlMode =>
-  m === "automatico" ? "auto" : m === "parada" ? "estop" : "manual";
-const internalModeToWire = (m: ControlMode): string =>
-  m === "auto" ? "automatico" : m === "estop" ? "parada" : "manual";
-
-// Produtos químicos — já em PT em ambos lados.
 const DoseChemEnum = z.enum(["cloro", "acido", "base"]);
-
-// Tipo de evento: PT "iniciada"|"concluida"|"bloqueada" → EN "started"|"completed"|"blocked".
-const EventWireEnum = z.enum(["iniciada", "concluida", "bloqueada"]);
-const wireEventToInternal = (e: z.infer<typeof EventWireEnum>): "started" | "completed" | "blocked" =>
-  e === "iniciada" ? "started" : e === "concluida" ? "completed" : "blocked";
-
-// FORK PT (Melhoria 1) — origem do comando para auditoria.
-const FonteEnum = z.enum(["automatico", "manual"]);
-
-const StatusEnum = z.enum(["OK", "BAIXO", "ALTO", "ERRO"]);
+const BombaEnum = z.union([
+  z.enum(["ON", "OFF", "LIGADA", "DESLIGADA"]),
+  z.boolean(),
+]);
 
 // ─────────────────────────────────────────────────────────────────────
-// Schemas dos 3 tópicos de controle. Wire format PT, transform → EN.
+// Schema do payload consolidado (aquasense-ibmec-pt/dados, retain).
+// Payload flat do firmware v3.0:
+//   { projeto, ciclo, ph, orp_mv, cloro, alcalinidade, condutividade_us_cm,
+//     temp_piscina, temp_coletor, delta_t, umidade, bomba, alertas,
+//     modo, parada_emergencia, dose_em_andamento }
+// A UI consome ph / orp_mv / condutividade_us_cm; cloro/alcalinidade ficam
+// disponíveis no payload (passthrough) mas não são exibidos.
 // ─────────────────────────────────────────────────────────────────────
+export const SnapshotSchema = z
+  .object({
+    ph: numInRange(0, 14),
+    orp_mv: numInRange(-2000, 2000),
+    condutividade_us_cm: numInRange(0, 5000),
+    temp_piscina: numInRange(-10, 100),
+    temp_coletor: numInRange(-10, 150),
+    delta_t: z.number().finite().min(-100).max(100).optional(),
+    umidade: z.number().finite().min(-1).max(100).optional(),
+    bomba: BombaEnum,
+    alertas: z.array(z.string().max(200)).max(20).optional(),
+    ciclo: z.number().int().min(0).max(10_000_000).optional(),
+    timestamp_ms: z.number().int().min(0).optional(),
+  })
+  .passthrough();
 
-// dosagem/evento — schema PT com novo campo `fonte`.
+// ─────────────────────────────────────────────────────────────────────
+// Schema do evento de dosagem (aquasense-ibmec-pt/dosagem/evento).
+// Payload do firmware v3.0: { parametro, evento, motivo?, fonte }
+// ─────────────────────────────────────────────────────────────────────
 export const DosingEventSchema = z
   .object({
     parametro: DoseChemEnum,
-    evento: EventWireEnum,
+    evento: z.enum(["iniciada", "concluida", "bloqueada"]),
     motivo: z.string().max(200).optional(),
-    doses_hora: z.number().int().min(0).max(1000).optional(),
-    doses_dia: z.number().int().min(0).max(1000).optional(),
-    fonte: FonteEnum.optional(),
+    fonte: z.string().max(40).optional(),
   })
   .passthrough();
 
-// controle/estado (retain) — schema PT com transform.
-export const ControlStateSchema = z
-  .object({
-    modo: ModeWireEnum,
-    parada_emergencia: z.boolean(),
-    dose_em_andamento: DoseChemEnum.nullable(),
-  })
-  .passthrough();
+// Compat: alias mantido para call sites/testes que referenciam o nome antigo.
+export const DosingResponseSchema = DosingEventSchema;
 
-// sistema/saude — telemetria 60s. Todos campos opcionais.
-const DosesTodaySchema = z.object({
-  cloro: z.number().int().min(0).max(1000),
-  acido: z.number().int().min(0).max(1000),
-  base: z.number().int().min(0).max(1000),
+// Mapeia o evento do firmware para o resultado exibido na UI.
+function eventoToResultado(evento: "iniciada" | "concluida" | "bloqueada"): DosingResponse["resultado"] {
+  if (evento === "bloqueada") return "bloqueado";
+  return "ok";
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Schema do comando que o DASHBOARD publica (validação defensiva pré-envio).
+// ─────────────────────────────────────────────────────────────────────
+export const DosingCommandSchema = z.object({
+  parametro: DoseChemEnum,
+  origem: z.enum(["manual", "automatico"]),
+  comando_id: z.string().min(1).max(128),
 });
 
-export const SystemHealthSchema = z
-  .object({
-    tempo_ativo_s: z.number().int().min(0).max(10_000_000).optional(),
-    heap_livre_kb: z.number().int().min(0).max(10_000).optional(),
-    rssi_wifi_dbm: z.number().finite().min(-120).max(0).optional(),
-    erros_dht: z.number().int().min(0).max(1_000_000).optional(),
-    erros_ds: z.number().int().min(0).max(1_000_000).optional(),
-    falhas_mqtt: z.number().int().min(0).max(1_000_000).optional(),
-    doses_hoje: DosesTodaySchema.optional(),
-  })
-  .passthrough();
-
-// ─────────────────────────────────────────────────────────────────────
-// Payload consolidado (`dados`) — flat PT do firmware main_pt.py.
-// ─────────────────────────────────────────────────────────────────────
-
-const FlatPayloadPtSchema = z
-  .object({
-    ph: numInRange(0, 14),
-    orp_mv: z.number().finite().min(-2000).max(2000).optional(),
-    cloro: numInRange(0, 20),
-    alcalinidade: numInRange(0, 500),
-    temp_piscina: numInRange(-10, 100),
-    temp_coletor: numInRange(-10, 150).optional(),
-    delta_t: z.number().finite().min(-100).max(100).optional(),
-    umidade: z.number().finite().min(-1).max(100).optional(),
-    condutividade_us_cm: z.number().finite().min(0).max(10000).optional(),
-    bomba: z.union([z.enum(["LIGADA", "DESLIGADA"]), z.boolean()]),
-    alertas: z.array(z.string().max(200)).max(20).optional(),
-    ciclo: z.number().int().min(0).max(10_000_000).optional(),
-    modo: ModeWireEnum.optional(),
-    parada_emergencia: z.boolean().optional(),
-    dose_em_andamento: DoseChemEnum.nullable().optional(),
-  })
-  .passthrough();
-
-// O firmware PT (main_pt.py) publica JSON flat em aquasense-ibmec-pt/dados.
-function parseConsolidated(raw: string): AquaSenseData | null {
+// Parser puro do snapshot — exportado para testes de fixture.
+export function parseSnapshot(raw: string): AquaSenseData | null {
   try {
     if (raw.length > 8192) return null;
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== "object") return null;
 
-    if (typeof obj.ph !== "number" || typeof obj.temp_piscina !== "number") return null;
-
-    const flat = FlatPayloadPtSchema.safeParse(obj);
-    if (!flat.success) {
-      console.warn("[MQTT] payload PT rejeitado:", flat.error.issues[0]?.message);
+    const r = SnapshotSchema.safeParse(obj);
+    if (!r.success) {
+      console.warn("[MQTT] snapshot rejeitado:", r.error.issues[0]?.message);
       return null;
     }
-    const f = flat.data;
+    const f = r.data;
     const ph = f.ph;
-    const cloro = f.cloro;
-    const alk = f.alcalinidade;
-    const orp = f.orp_mv ?? 0;
+    const orp = f.orp_mv;
+    const cond = f.condutividade_us_cm;
     const tPool = f.temp_piscina;
-    const tSolar = f.temp_coletor ?? -99;
+    const tSolar = f.temp_coletor;
     const dT = f.delta_t ?? tSolar - tPool;
-    const hum  = f.umidade ?? -1;
-    const cond = f.condutividade_us_cm ?? null;
-    const pumpOn = f.bomba === "LIGADA" || f.bomba === true;
+    const hum = f.umidade ?? -1;
+    const pumpOn = f.bomba === "ON" || f.bomba === "LIGADA" || f.bomba === true;
     const alerts = (f.alertas ?? []).slice(0, 20);
 
     return {
@@ -226,12 +178,10 @@ function parseConsolidated(raw: string): AquaSenseData | null {
       qualidade_agua: {
         ph,
         ph_status: statusFor(ph, 7.2, 7.6),
-        cloro_ppm: cloro,
-        cloro_status: statusFor(cloro, 1.0, 3.0),
         orp_mv: orp,
-        alcalinidade_ppm: alk,
-        alcalinidade_status: statusFor(alk, 80, 120),
-        condutividade_us_cm: cond ?? undefined,
+        orp_status: statusFor(orp, 650, 750),
+        cond_us: cond,
+        cond_status: statusFor(cond, 800, 1500),
       },
       temperaturas: {
         piscina_C: tPool,
@@ -244,14 +194,21 @@ function parseConsolidated(raw: string): AquaSenseData | null {
         led_status: alerts.length === 0 ? "ACESO" : "APAGADO",
       },
       alertas: alerts,
-      // Internals EN — traduzidos a partir do wire PT.
-      mode: f.modo ? wireModeToInternal(f.modo) : undefined,
-      estop: f.parada_emergencia,
-      dose_in_progress: f.dose_em_andamento,
     };
   } catch {
     return null;
   }
+}
+
+function genCommandId(): string {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* ignore */
+  }
+  return `cmd-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
 export function MqttProvider({ children }: { children: ReactNode }) {
@@ -263,25 +220,19 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   const [log, setLog] = useState<MqttLogEntry[]>([]);
   const [gapState, setGapState] = useState<GapDetectorState>(() => createGapDetector());
   const [messagesReceivedCount, setMessagesReceivedCount] = useState(0);
+  const [dosingResponses, setDosingResponses] = useState<DosingResponse[]>([]);
   const [providerMountedAt] = useState(() => Date.now());
-  const [dosingEvents, setDosingEvents] = useState<DoseEvent[]>([]);
-  const [controlState, setControlState] = useState<ControlStateMessage | null>(null);
-  const [systemHealth, setSystemHealth] = useState<SystemHealthMessage | null>(null);
-  const sourceRef = useRef<DataSource>("none");
 
-  const clientRef = useRef<MqttClient | null>(null);
-  const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clientRef = useRef<ReturnType<typeof mqtt.connect> | null>(null);
   const lastRealAtRef = useRef<number>(0);
+  const sourceRef = useRef<DataSource>("none");
+  const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const clientId = "aquasense-dashboard-pt-" + Math.random().toString(16).slice(2, 10);
     const client = mqtt.connect(MQTT_URL, {
-      clientId,
-      clean: true,
       reconnectPeriod: 4000,
-      connectTimeout: 10_000,
+      connectTimeout: 8000,
+      clean: true,
       username: MQTT_USERNAME,
       password: MQTT_PASSWORD,
     });
@@ -289,20 +240,13 @@ export function MqttProvider({ children }: { children: ReactNode }) {
 
     client.on("connect", () => {
       setStatus("connected");
-      client.subscribe(MQTT_TOPICS.ALL, { qos: 0 }, (err) => {
-        if (err) console.error("[MQTT] subscribe failed:", err);
-        else console.log(`[MQTT] subscribed to ${MQTT_TOPICS.ALL}`);
-      });
+      client.subscribe(MQTT_TOPICS.ALL, { qos: 0 }, () => undefined);
     });
     client.on("reconnect", () => setStatus("connecting"));
-    client.on("close", () => setStatus("disconnected"));
     client.on("offline", () => setStatus("disconnected"));
-    client.on("error", (err) => {
-      console.error("[MQTT] error:", err);
-      setStatus("error");
-    });
+    client.on("error", () => setStatus("error"));
 
-    client.on("message", (topic, payloadBuf) => {
+    client.on("message", (topic: string, payloadBuf: Uint8Array) => {
       const payload = payloadBuf.toString();
       const now = Date.now();
 
@@ -311,10 +255,8 @@ export function MqttProvider({ children }: { children: ReactNode }) {
         return next.length > LOG_MAX ? next.slice(0, LOG_MAX) : next;
       });
 
-      // dosagem/evento — schema PT, traduz para internal DoseEvent EN.
-      // Também propaga para o store quando evento é "concluida" (atualiza
-      // ultimaDosePorProduto para a melhoria "última dose há X").
-      if (topic === MQTT_TOPICS.DOSING_EVENT) {
+      // dosagem/evento — feedback assíncrono de um comando de dosagem.
+      if (topic === MQTT_TOPICS.DOSAGEM_EVENTO) {
         try {
           const obj = JSON.parse(payload);
           const r = DosingEventSchema.safeParse(obj);
@@ -322,78 +264,28 @@ export function MqttProvider({ children }: { children: ReactNode }) {
             console.warn("[MQTT] dosagem/evento rejeitado:", r.error.issues[0]?.message);
             return;
           }
-          const internalEvent = wireEventToInternal(r.data.evento);
-          const ev: DoseEvent = {
+          const resp: DosingResponse = {
             t: now,
-            parameter: r.data.parametro,
-            event: internalEvent,
-            reason: r.data.motivo,
-            doses_hour: r.data.doses_hora,
-            doses_day: r.data.doses_dia,
+            parametro: r.data.parametro,
+            evento: r.data.evento,
+            resultado: eventoToResultado(r.data.evento),
+            motivo: r.data.motivo,
             fonte: r.data.fonte,
           };
-          setDosingEvents((prev) => {
-            const next = [ev, ...prev];
-            return next.length > DOSING_EVENTS_MAX ? next.slice(0, DOSING_EVENTS_MAX) : next;
+          setDosingResponses((prev) => {
+            const next = [resp, ...prev];
+            return next.length > RESPONSES_MAX ? next.slice(0, RESPONSES_MAX) : next;
           });
-          if (internalEvent === "completed") {
-            usePoolStore.getState().registerDoseCompleted?.(ev.parameter, now);
-          }
         } catch {
           /* JSON inválido — ignora */
         }
         return;
       }
 
-      // controle/estado (retain) — schema PT, traduz mode → internal EN.
-      if (topic === MQTT_TOPICS.CONTROL_STATE) {
-        try {
-          const obj = JSON.parse(payload);
-          const r = ControlStateSchema.safeParse(obj);
-          if (!r.success) {
-            console.warn("[MQTT] controle/estado rejeitado:", r.error.issues[0]?.message);
-            return;
-          }
-          setControlState({
-            mode: wireModeToInternal(r.data.modo),
-            estop: r.data.parada_emergencia,
-            dose_in_progress: r.data.dose_em_andamento,
-            t: now,
-          });
-        } catch {
-          /* ignora */
-        }
-        return;
-      }
+      // Payload consolidado — única fonte que alimenta o store.
+      if (topic !== MQTT_TOPICS.DADOS) return;
 
-      // sistema/saude — schema PT, traduz para internal SystemHealthMessage EN.
-      if (topic === MQTT_TOPICS.SYSTEM_HEALTH) {
-        try {
-          const obj = JSON.parse(payload);
-          const r = SystemHealthSchema.safeParse(obj);
-          if (!r.success) {
-            console.warn("[MQTT] sistema/saude rejeitado:", r.error.issues[0]?.message);
-            return;
-          }
-          setSystemHealth({
-            t: now,
-            uptime_s: r.data.tempo_ativo_s,
-            free_heap_kb: r.data.heap_livre_kb,
-            wifi_rssi_dbm: r.data.rssi_wifi_dbm,
-            dht_errors: r.data.erros_dht,
-            ds_errors: r.data.erros_ds,
-            mqtt_failures: r.data.falhas_mqtt,
-            doses_today: r.data.doses_hoje,
-          });
-        } catch {
-          /* ignora */
-        }
-        return;
-      }
-
-      if (topic !== MQTT_TOPICS.DATA) return;
-
-      const parsed = parseConsolidated(payload);
+      const parsed = parseSnapshot(payload);
       if (!parsed) return;
 
       lastRealAtRef.current = now;
@@ -437,22 +329,20 @@ export function MqttProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Publishers — sempre em PT (firmware PT consome).
   // Throttle de 1s por (topic+payload). Status !== "connected" rejeita.
   const lastPublishRef = useRef<Record<string, number>>({});
   const publishWithThrottle = useCallback(
-    (topic: string, payloadObj: Record<string, unknown>) => {
+    (topic: string, payloadObj: Record<string, unknown>, throttleKey: string) => {
       const client = clientRef.current;
       if (!client || status !== "connected") {
         return Promise.reject(new Error("MQTT desconectado — comando não enviado"));
       }
-      const key = topic + ":" + JSON.stringify(payloadObj);
       const now = Date.now();
-      const last = lastPublishRef.current[key] ?? 0;
+      const last = lastPublishRef.current[throttleKey] ?? 0;
       if (now - last < COMMAND_THROTTLE_MS) {
         return Promise.resolve();
       }
-      lastPublishRef.current[key] = now;
+      lastPublishRef.current[throttleKey] = now;
       return new Promise<void>((resolve, reject) => {
         client.publish(topic, JSON.stringify(payloadObj), { qos: 0, retain: false }, (err) =>
           err ? reject(err) : resolve(),
@@ -462,13 +352,13 @@ export function MqttProvider({ children }: { children: ReactNode }) {
     [status],
   );
 
-  const publishMode = useCallback(
-    // Internal EN → wire PT no payload.
-    (mode: ControlMode) => publishWithThrottle(TOPIC_CONTROL_MODE, { modo: internalModeToWire(mode) }),
-    [publishWithThrottle],
-  );
   const publishDosingCommand = useCallback(
-    (parameter: DoseChemical) => publishWithThrottle(TOPIC_DOSING_COMMAND, { parametro: parameter }),
+    (parameter: DoseChemical) =>
+      publishWithThrottle(
+        TOPIC_DOSING_COMMAND,
+        { parametro: parameter, origem: "manual", comando_id: genCommandId() },
+        `dosagem:${parameter}`,
+      ),
     [publishWithThrottle],
   );
 
@@ -484,10 +374,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       totalGaps: gapState.totalGaps,
       messagesReceivedCount,
       providerMountedAt,
-      dosingEvents,
-      controlState,
-      systemHealth,
-      publishMode,
+      dosingResponses,
       publishDosingCommand,
     }),
     [
@@ -500,10 +387,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       gapState,
       messagesReceivedCount,
       providerMountedAt,
-      dosingEvents,
-      controlState,
-      systemHealth,
-      publishMode,
+      dosingResponses,
       publishDosingCommand,
     ],
   );
@@ -516,9 +400,8 @@ export function useMqtt(): MqttContextValue {
 }
 
 export function useMqttCommands(): {
-  publishMode: (mode: ControlMode) => Promise<void>;
   publishDosingCommand: (parameter: DoseChemical) => Promise<void>;
 } {
-  const { publishMode, publishDosingCommand } = useContext(MqttContext);
-  return { publishMode, publishDosingCommand };
+  const { publishDosingCommand } = useContext(MqttContext);
+  return { publishDosingCommand };
 }

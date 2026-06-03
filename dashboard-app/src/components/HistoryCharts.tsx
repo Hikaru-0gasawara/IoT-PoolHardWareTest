@@ -10,8 +10,8 @@ import { THRESHOLDS, statusFor, statusLabel } from "@/lib/thresholds";
 import type { SensorPoint } from "@/types/aquasense";
 
 type Range = "24h" | "7d" | "30d";
-type PanelKey = "temperaturas" | "quimicos" | "alcalinidade" | "bomba";
-type SeriesKey = "temp_piscina" | "temp_coletor" | "ph" | "cloro" | "alcalinidade";
+type PanelKey = "temperaturas" | "quimicos" | "condutividade" | "bomba";
+type SeriesKey = "temp_piscina" | "temp_coletor" | "ph" | "orp" | "condutividade";
 
 const PANELS_STORAGE_KEY = "graficos.painels";
 const SERIES_STORAGE_KEY = "graficos.series";
@@ -22,7 +22,7 @@ const isRange = (v: unknown): v is Range => v === "24h" || v === "7d" || v === "
 const DEFAULT_PANELS: Record<PanelKey, boolean> = {
   temperaturas: true,
   quimicos: true,
-  alcalinidade: true,
+  condutividade: true,
   bomba: true,
 };
 
@@ -30,8 +30,8 @@ const DEFAULT_SERIES: Record<SeriesKey, boolean> = {
   temp_piscina: true,
   temp_coletor: true,
   ph: true,
-  cloro: true,
-  alcalinidade: true,
+  orp: true,
+  condutividade: true,
 };
 
 // Que séries pertencem a qual painel — usado para esconder chips do nível 2
@@ -40,8 +40,8 @@ const SERIES_TO_PANEL: Record<SeriesKey, PanelKey> = {
   temp_piscina: "temperaturas",
   temp_coletor: "temperaturas",
   ph: "quimicos",
-  cloro: "quimicos",
-  alcalinidade: "alcalinidade",
+  orp: "quimicos",
+  condutividade: "condutividade",
 };
 
 function loadJSON<T extends Record<string, boolean>>(key: string, fallback: T): T {
@@ -136,7 +136,7 @@ export function HistoryCharts() {
   const toggleSeries = (k: SeriesKey) => setSeries((s) => ({ ...s, [k]: !s[k] }));
   const showAllPanels = () => setPanels({ ...DEFAULT_PANELS });
 
-  const allPanelsOff = !panels.temperaturas && !panels.quimicos && !panels.alcalinidade && !panels.bomba;
+  const allPanelsOff = !panels.temperaturas && !panels.quimicos && !panels.condutividade && !panels.bomba;
 
   // 24h = todos os pontos do history (5min × 288), 7d/30d = subsample
   let data: SensorPoint[] = history;
@@ -145,8 +145,8 @@ export function HistoryCharts() {
 
   const tempT = THRESHOLDS.temp_piscina;
   const phT = THRESHOLDS.ph;
-  const cloroT = THRESHOLDS.cloro;
-  const alcT = THRESHOLDS.alcalinidade;
+  const orpT = THRESHOLDS.orp;
+  const condT = THRESHOLDS.condutividade;
 
   // Acionamentos por hora
   const pumpByHour = (() => {
@@ -164,7 +164,7 @@ export function HistoryCharts() {
 
   const exportRows = data.map((d) => ({
     timestamp: new Date(d.t).toISOString(),
-    ph: d.ph, cloro_ppm: d.cloro, alcalinidade_ppm: d.alcalinidade,
+    ph: d.ph, orp_mv: d.orp, condutividade_us: d.condutividade,
     temp_piscina_c: d.temp_piscina, temp_coletor_c: d.temp_coletor,
     bomba: d.bomba_ligada ? "ON" : "OFF",
   }));
@@ -173,7 +173,7 @@ export function HistoryCharts() {
   const last = data[data.length - 1];
   const first = data[0];
   const rangeLabel = range === "24h" ? "24 horas" : range === "7d" ? "7 dias" : "30 dias";
-  function summarize(key: "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "temp_coletor") {
+  function summarize(key: "ph" | "orp" | "condutividade" | "temp_piscina" | "temp_coletor") {
     if (!data.length) return null;
     const vals = data.map((d) => d[key] as number).filter((v) => Number.isFinite(v));
     if (!vals.length) return null;
@@ -182,28 +182,25 @@ export function HistoryCharts() {
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
     const cur = last[key] as number;
     const t = THRESHOLDS[key];
-    const thresholdKey = key === "alcalinidade" ? "alcalinidade" : key;
-    const status = statusFor(thresholdKey as Parameters<typeof statusFor>[0], cur);
+    const status = statusFor(key, cur);
     return { min, max, avg, cur, t, status };
   }
   const pumpMinutes = pumpByHour.reduce((a, b) => a + b.minutos, 0);
 
-  // Configuração dos chips do nível 2 — apenas séries cujo painel está visível
-  // E cujo painel suporta múltiplas séries (Alcalinidade tem 1 série só, mas a
-  // listamos para consistência; Bomba não tem séries — ignorada).
+  // Configuração dos chips do nível 2 — apenas séries cujo painel está visível.
   const SERIES_CONFIG: Array<{ key: SeriesKey; label: string; color: string }> = [
     { key: "temp_piscina", label: "Piscina", color: "var(--param-pool)" },
     { key: "temp_coletor", label: "Coletor solar", color: "var(--param-solar)" },
     { key: "ph", label: "pH", color: "var(--param-ph)" },
-    { key: "cloro", label: "Cloro", color: "var(--param-cloro)" },
-    { key: "alcalinidade", label: "Alcalinidade", color: "var(--param-alc)" },
+    { key: "orp", label: "ORP", color: "var(--param-orp)" },
+    { key: "condutividade", label: "Condutividade", color: "var(--param-cond)" },
   ];
   const visibleSeriesChips = SERIES_CONFIG.filter((s) => panels[SERIES_TO_PANEL[s.key]]);
 
   const PANEL_CONFIG: Array<{ key: PanelKey; label: string }> = [
     { key: "temperaturas", label: "Temperaturas" },
-    { key: "quimicos", label: "Químicos" },
-    { key: "alcalinidade", label: "Alcalinidade" },
+    { key: "quimicos", label: "pH e ORP" },
+    { key: "condutividade", label: "Condutividade" },
     { key: "bomba", label: "Bomba" },
   ];
 
@@ -339,14 +336,14 @@ export function HistoryCharts() {
       {panels.quimicos && (
       <ChartCard
         title="Químicos da água"
-        subtitle="pH e Cloro livre"
-        ariaDescription="Gráfico de linha com pH (eixo esquerdo) e cloro livre em ppm (eixo direito), faixa ideal destacada."
+        subtitle="pH e ORP"
+        ariaDescription="Gráfico de linha com pH (eixo esquerdo) e ORP em mV (eixo direito), faixa ideal destacada."
         fallback={
           <SummaryTable
-            caption={`Resumo de pH e cloro — ${rangeLabel}`}
+            caption={`Resumo de pH e ORP — ${rangeLabel}`}
             rows={[
               { key: "ph", label: "pH", summary: summarize("ph") },
-              { key: "cloro", label: "Cloro livre", summary: summarize("cloro") },
+              { key: "orp", label: "ORP", summary: summarize("orp") },
             ]}
           />
         }
@@ -356,43 +353,43 @@ export function HistoryCharts() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--aqua-border)" opacity={0.4} />
             <XAxis dataKey="t" tickFormatter={(t) => formatTick(t, range)} stroke="var(--aqua-text-muted)" fontSize={11} />
             <YAxis yAxisId="ph" domain={[6.8, 8]} stroke="var(--param-ph)" fontSize={11} />
-            <YAxis yAxisId="cl" orientation="right" domain={[0, 5]} stroke="var(--param-cloro)" fontSize={11} />
+            <YAxis yAxisId="orp" orientation="right" domain={[600, 800]} stroke="var(--param-orp)" fontSize={11} />
             <Tooltip content={<TooltipBox />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <ReferenceArea yAxisId="ph" y1={phT.idealMin} y2={phT.idealMax} fill="var(--status-ok)" fillOpacity={0.08} />
             {series.ph && <Line yAxisId="ph" type="monotone" dataKey="ph" name="pH" stroke="var(--param-ph)" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-            {series.cloro && <Line yAxisId="cl" type="monotone" dataKey="cloro" name="Cloro (ppm)" stroke="var(--param-cloro)" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+            {series.orp && <Line yAxisId="orp" type="monotone" dataKey="orp" name="ORP (mV)" stroke="var(--param-orp)" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
       )}
 
-      {panels.alcalinidade && (
+      {panels.condutividade && (
       <ChartCard
-        title="Alcalinidade total"
-        subtitle="ppm CaCO₃"
-        ariaDescription="Gráfico de área da alcalinidade total em ppm de carbonato de cálcio."
+        title="Condutividade"
+        subtitle="µS/cm"
+        ariaDescription="Gráfico de área da condutividade da água em microsiemens por centímetro."
         fallback={
           <SummaryTable
-            caption={`Resumo de alcalinidade — ${rangeLabel}`}
-            rows={[{ key: "alcalinidade", label: "Alcalinidade", summary: summarize("alcalinidade") }]}
+            caption={`Resumo de condutividade — ${rangeLabel}`}
+            rows={[{ key: "condutividade", label: "Condutividade", summary: summarize("condutividade") }]}
           />
         }
       >
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="alcFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="var(--param-alc)" stopOpacity={0.5} />
-                <stop offset="100%" stopColor="var(--param-alc)" stopOpacity={0.05} />
+              <linearGradient id="condFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="var(--param-cond)" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="var(--param-cond)" stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--aqua-border)" opacity={0.4} />
             <XAxis dataKey="t" tickFormatter={(t) => formatTick(t, range)} stroke="var(--aqua-text-muted)" fontSize={11} />
-            <YAxis stroke="var(--aqua-text-muted)" fontSize={11} domain={[60, 150]} />
+            <YAxis stroke="var(--aqua-text-muted)" fontSize={11} domain={[700, 1600]} />
             <Tooltip content={<TooltipBox />} />
-            <ReferenceArea y1={alcT.idealMin} y2={alcT.idealMax} fill="var(--status-ok)" fillOpacity={0.1} />
-            {series.alcalinidade && <Area type="monotone" dataKey="alcalinidade" name="Alcalinidade" stroke="var(--param-alc)" fill="url(#alcFill)" strokeWidth={2.5} isAnimationActive={false} />}
+            <ReferenceArea y1={condT.idealMin} y2={condT.idealMax} fill="var(--status-ok)" fillOpacity={0.1} />
+            {series.condutividade && <Area type="monotone" dataKey="condutividade" name="Condutividade" stroke="var(--param-cond)" fill="url(#condFill)" strokeWidth={2.5} isAnimationActive={false} />}
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>

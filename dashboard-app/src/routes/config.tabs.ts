@@ -3,7 +3,7 @@
 // Esta é a fonte única de verdade — a UI (config.tsx / ConfigTabsView) renderiza
 // a partir deste array e os testes garantem a ordem e os deep links.
 
-export type ConfigTab = "controle-avancado" | "diagnostico" | "sobre";
+export type ConfigTab = "controle-avancado" | "integracoes" | "sobre";
 
 export interface ConfigTabDef {
   value: ConfigTab;
@@ -12,7 +12,7 @@ export interface ConfigTabDef {
 
 export const CONFIG_TABS: readonly ConfigTabDef[] = [
   { value: "controle-avancado", label: "Controle Avançado" },
-  { value: "diagnostico", label: "Diagnóstico" },
+  { value: "integracoes", label: "Integrações" },
   { value: "sobre", label: "Sobre" },
 ] as const;
 

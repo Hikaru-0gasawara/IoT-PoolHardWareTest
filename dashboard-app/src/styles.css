@@ -49,8 +49,8 @@
   --color-flow: var(--flow);
 
   --color-param-ph: var(--param-ph);
-  --color-param-cloro: var(--param-cloro);
-  --color-param-alc: var(--param-alc);
+  --color-param-orp: var(--param-orp);
+  --color-param-cond: var(--param-cond);
   --color-param-pool: var(--param-pool);
   --color-param-solar: var(--param-solar);
 
@@ -112,8 +112,8 @@
   --flow: oklch(0.66 0.18 250);                /* ~ #3B82F6 */
 
   --param-ph: oklch(0.55 0.18 285);            /* roxo */
-  --param-cloro: oklch(0.66 0.18 40);          /* laranja */
-  --param-alc: oklch(0.65 0.16 155);           /* verde */
+  --param-orp: oklch(0.66 0.18 40);            /* laranja — oxidação */
+  --param-cond: oklch(0.65 0.16 155);          /* verde — sais dissolvidos */
   --param-pool: oklch(0.68 0.14 240);          /* azul */
   --param-solar: oklch(0.78 0.16 75);          /* amarelo solar */
 
@@ -131,8 +131,8 @@
   --chart-1: var(--param-pool);
   --chart-2: var(--param-solar);
   --chart-3: var(--param-ph);
-  --chart-4: var(--param-cloro);
-  --chart-5: var(--param-alc);
+  --chart-4: var(--param-orp);
+  --chart-5: var(--param-cond);
 }
 
 .light {
@@ -265,6 +265,23 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fade-up 0.4s ease-out both; }
+
+/* Tile interactions — hover glow follows the parameter status color */
+.tile-interactive:hover {
+  box-shadow: 0 12px 28px -12px color-mix(in oklab, var(--tile-glow, var(--aqua-accent)) 55%, transparent);
+  border-color: var(--tile-glow, var(--aqua-border)) !important;
+}
+
+/* Alert tiles pulse a soft ring so warn/crit reads at a glance */
+@keyframes tile-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--tile-glow) 45%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in oklab, var(--tile-glow) 0%, transparent); }
+}
+.tile-alert-warn { animation: tile-alert-pulse 2.4s ease-in-out infinite; }
+.tile-alert-crit { animation: tile-alert-pulse 1.3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tile-alert-warn, .tile-alert-crit { animation: none; }
+}
 
 /* Scrollbar minimal */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
