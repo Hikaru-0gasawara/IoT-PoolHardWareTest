@@ -25,19 +25,31 @@ interface CardProps {
   icon: React.ReactNode;
 }
 
+// Descrição contextual da variação por parâmetro e direção.
+function buildTrendLabel(paramKey: ParameterKey, diff: number, threshold: number): string {
+  if (Math.abs(diff) < threshold) return "Estável";
+  if (paramKey === "ph")
+    return diff > 0 ? "Tendendo a básico" : "Tendendo a ácido — observe nas próximas leituras";
+  if (paramKey === "cloro")
+    return diff > 0 ? "Cloro aumentando" : "Cloro reduzindo — monitore";
+  if (paramKey === "alcalinidade")
+    return diff > 0 ? "Alcalinidade subindo" : "Alcalinidade reduzindo";
+  if (paramKey === "temp_piscina")
+    return diff > 0 ? "Piscina aquecendo" : "Piscina esfriando";
+  return diff > 0 ? "Subindo" : "Descendo";
+}
+
 export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: CardProps) {
   const value = usePoolStore((s) => s[paramKey] as number);
   const history = usePoolStore((s) => s.history);
+  const liveHistory = usePoolStore((s) => s.liveHistory);
   const t = THRESHOLDS[paramKey];
 
   // Status do firmware tem prioridade sobre o cálculo local (quando MQTT real).
   const wq = usePoolData();
   const temps = useTemperatures();
   const conn = useConnection();
-  // v4.0 — indicador sutil "dosando" no card relevante. Mapeamento:
-  //   cloro → card de cloro
-  //   acido (pH-) e base (pH+) → ambos visíveis no card de pH
-  // Nada saturado: cinza pequeno, sem competir com a pílula de status.
+  // v4.0 — indicador sutil "dosando" no card relevante.
   const dose = useDoseInProgress();
   const dosingThis =
     (paramKey === "cloro" && dose === "cloro") ||
@@ -56,9 +68,6 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
     : statusFor(paramKey, value);
   const sColor = statusColor(status);
 
-  // -99.0 do firmware = sensor com erro (vale para temperaturas principalmente).
-  // FORK PT (Adição 1) — cloro=0.0 por 3+ ciclos consecutivos é tratado como
-  // erro de sensor (provavelmente leitura morta), não como "preciso dosar".
   const cloroEmErro = usePoolStore((s) => s.cloroEmErro);
   const sensorError =
     (paramKey === "temp_piscina" && conn.source === "mqtt" && isSensorError(temps.piscina_C)) ||
@@ -66,9 +75,6 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
     (paramKey === "cloro" && cloroEmErro) ||
     isSensorError(value);
 
-  // Ícone de status — complementa a cor da borda (acessibilidade daltônica).
-  // Mantém AlertOctagon dedicado a sensorError, que é uma falha distinta de
-  // "fora da faixa": o sensor não está medindo nada.
   const StatusIcon = sensorError
     ? AlertOctagon
     : status === "ok" ? CheckCircle2
@@ -81,36 +87,32 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
     : status === "warn" ? "atenção"
     : "crítico";
 
-  // sparkline — últimos 24 pontos (~2h) — recalcula só quando history muda (5min)
-  const spark = useMemo(
-    () => history.slice(-24).map((p) => ({ v: p[paramKey] as number, t: p.t })),
-    [history, paramKey],
+  // Live sparkline — últimos 60 pontos (~5min a 5s/ciclo). Usado no mini
+  // chart do canto superior direito e no aria-label do card.
+  const liveSpark = useMemo(
+    () => liveHistory.slice(-60).map((p) => ({ v: p[paramKey] as number, t: p.t })),
+    [liveHistory, paramKey],
   );
 
-  // Domínio mínimo do sparkline — quando a amplitude real é muito pequena
-  // (ex: coletor estável por 2h), Recharts auto-ajusta o eixo Y para a
-  // diferença mínima e o gráfico vira uma reta visualmente "morta". Forçamos
-  // uma amplitude mínima por parâmetro para preservar legibilidade.
-  const sparkDomain = useMemo<[number, number] | undefined>(() => {
-    if (spark.length === 0) return undefined;
-    const values = spark.map((p) => p.v).filter((v) => Number.isFinite(v) && v > -50);
+  // Amplitude mínima visual — evita que gráfico vire reta em dados estáveis.
+  const liveSparkDomain = useMemo<[number, number] | undefined>(() => {
+    if (liveSpark.length === 0) return undefined;
+    const values = liveSpark.map((p) => p.v).filter((v) => Number.isFinite(v) && v > -50);
     if (values.length === 0) return undefined;
     const min = Math.min(...values);
     const max = Math.max(...values);
-    // Amplitude mínima visual por parâmetro — calibrada para mostrar oscilação
-    // sem amplificar ruído insignificante.
     const minAmplitude =
       paramKey === "ph" ? 0.1
       : paramKey === "cloro" ? 0.3
       : paramKey === "alcalinidade" ? 5
-      : 1.5; // temperaturas
+      : 1.5;
     const amplitude = Math.max(max - min, minAmplitude);
     const center = (max + min) / 2;
     const pad = amplitude * 0.15;
     return [center - amplitude / 2 - pad, center + amplitude / 2 + pad];
-  }, [spark, paramKey]);
+  }, [liveSpark, paramKey]);
 
-  // tendência: comparar com ~1h atrás (12 pontos × 5min)
+  // Delta 1h — usa history (5min interval × 12 = 1h).
   const { diff, trendIcon } = useMemo(() => {
     const past = history[Math.max(0, history.length - 12)]?.[paramKey] as number | undefined;
     const d = past !== undefined ? value - past : 0;
@@ -120,9 +122,12 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
     return { diff: d, trendIcon: icon };
   }, [history, paramKey, value, t]);
 
-  const decimals = paramKey === "alcalinidade" ? 0 : paramKey === "ph" ? 2 : 1;
+  const trendLabel = useMemo(
+    () => buildTrendLabel(paramKey, diff, (t.idealMax - t.idealMin) * 0.02),
+    [paramKey, diff, t],
+  );
 
-  // posição na barra de range
+  const decimals = paramKey === "alcalinidade" ? 0 : paramKey === "ph" ? 2 : 1;
   const pos = ((value - t.rangeMin) / (t.rangeMax - t.rangeMin)) * 100;
 
   return (
@@ -136,21 +141,22 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
       style={{ borderColor: status === "ok" ? "var(--aqua-border)" : sColor }}
       role="group"
       tabIndex={0}
-      aria-label={buildCardAriaLabel(paramKey, value, spark.map((p) => p.v))}
+      aria-label={buildCardAriaLabel(paramKey, value, liveSpark.map((p) => p.v))}
     >
       {/* status accent stripe */}
       <div aria-hidden="true" className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: sensorError ? "var(--status-crit)" : sColor }} />
 
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2.5">
+      {/* header: ícone + label + mini sparkline no canto direito */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
             aria-hidden="true"
-            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
             style={{ backgroundColor: `color-mix(in oklab, ${t.color} 18%, transparent)`, color: t.color }}
           >
             {icon}
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-xs font-medium text-aqua-text-muted">
               <StatusIcon
                 className="h-3.5 w-3.5 shrink-0"
@@ -186,6 +192,56 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
             )}
           </div>
         </div>
+
+        {/* mini sparkline — canto superior direito */}
+        {liveSpark.length >= 3 && !sensorError && (
+          <div className="h-14 w-24 shrink-0" aria-hidden="true">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={liveSpark} margin={{ top: 4, right: 2, bottom: 4, left: 2 }}>
+                <YAxis hide domain={liveSparkDomain ?? ["auto", "auto"]} />
+                <Tooltip
+                  cursor={{ stroke: t.color, strokeWidth: 1, strokeOpacity: 0.4 }}
+                  isAnimationActive={false}
+                  wrapperStyle={{ outline: "none", zIndex: 30 }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const p = payload[0]?.payload as { v: number; t: number } | undefined;
+                    if (!p) return null;
+                    const lines = formatTooltipContent(p, paramKey, Date.now());
+                    return (
+                      <div
+                        style={{
+                          background: "color-mix(in oklab, var(--aqua-surface) 95%, transparent)",
+                          border: "1px solid var(--aqua-border)",
+                          borderRadius: 6,
+                          padding: "6px 10px",
+                          fontSize: 12,
+                          lineHeight: 1.25,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div className="font-tabular" style={{ fontWeight: 600, color: "var(--aqua-text)" }}>
+                          {lines.valueLine}
+                        </div>
+                        <div style={{ fontWeight: 400, fontSize: 11, color: "var(--aqua-text-muted)" }}>
+                          {lines.timeLine}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke={t.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div className="mt-3 flex items-baseline gap-1.5">
@@ -254,52 +310,17 @@ export const ParameterCard = memo(function ParameterCard({ paramKey, icon }: Car
         </div>
       )}
 
-      {/* sparkline */}
-      <div className="mt-2 h-10 -mx-1" aria-hidden="true">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={spark} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <YAxis hide domain={sparkDomain ?? ["auto", "auto"]} />
-            <Tooltip
-              cursor={{ stroke: t.color, strokeWidth: 1, strokeOpacity: 0.4 }}
-              isAnimationActive={false}
-              wrapperStyle={{ outline: "none", zIndex: 30 }}
-              content={({ active, payload }) => {
-                if (!active || !payload || payload.length === 0) return null;
-                const p = payload[0]?.payload as { v: number; t: number } | undefined;
-                if (!p) return null;
-                const lines = formatTooltipContent(p, paramKey, Date.now());
-                return (
-                  <div
-                    style={{
-                      background: "color-mix(in oklab, var(--aqua-surface) 95%, transparent)",
-                      border: "1px solid var(--aqua-border)",
-                      borderRadius: 6,
-                      padding: "6px 10px",
-                      fontSize: 12,
-                      lineHeight: 1.25,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    <div
-                      className="font-tabular"
-                      style={{ fontWeight: 600, color: "var(--aqua-text)" }}
-                    >
-                      {lines.valueLine}
-                    </div>
-                    <div style={{ fontWeight: 400, fontSize: 11, color: "var(--aqua-text-muted)" }}>
-                      {lines.timeLine}
-                    </div>
-                  </div>
-                );
-              }}
-            />
-            <Line type="monotone" dataKey="v" stroke={t.color} strokeWidth={2} dot={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Δ/1h trend description */}
+      {!sensorError && (
+        <div className="mt-1.5 flex items-center gap-1 text-[10px] leading-tight">
+          <span className="font-tabular font-medium" style={{ color: sColor }}>
+            Δ {diff >= 0 ? "+" : ""}{diff.toFixed(decimals)} /1h
+          </span>
+          <span className="text-aqua-text-muted">{trendLabel}</span>
+        </div>
+      )}
 
-      {/* Calibração manual — só pH/Cloro/Alcalinidade. Esconde se sensor em
-          erro (sem leitura útil para comparar com referência). */}
+      {/* Calibração manual — só pH/Cloro/Alcalinidade. Esconde se sensor em erro. */}
       {!sensorError && CALIBRATION_MAP[paramKey] && (
         <CalibrationField
           param={CALIBRATION_MAP[paramKey]!.key}
