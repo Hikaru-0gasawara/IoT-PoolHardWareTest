@@ -1,7 +1,11 @@
 // AquaSense IoT — Tipos de domínio
 // Toda a UI consome destes tipos. Não inventar campos extras nos componentes.
+//
+// Parâmetros de água alinhados ao firmware v3.1: pH, cloro (ppm) e
+// alcalinidade (ppm). ORP e condutividade foram substituídos.
 
 export type ParameterKey = "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "temp_coletor";
+
 
 export type StatusLevel = "ok" | "warn" | "crit";
 
@@ -17,10 +21,24 @@ export interface SensorPoint {
   bomba_ligada: boolean;
 }
 
+
 export interface PumpEvent {
   t: number;
   ligada: boolean;
   motivo: string; // ex: "Auto: ΔT 12.4°C ≥ 5°C"
+}
+
+// ChemEvent — evento discreto de cruzamento de faixa de um parâmetro químico.
+// Hoje usado para o Cloro (faixa ideal 1.0–3.0 ppm): registramos o instante
+// em que a leitura ENTRA ou SAI da faixa, com a direção (baixo/alto) e a
+// severidade resultante. Alimenta o log de eventos do dashboard.
+export interface ChemEvent {
+  t: number; // epoch ms
+  parametro: ParameterKey;
+  tipo: "entrou_faixa" | "saiu_faixa";
+  direcao: "baixo" | "alto" | "ideal"; // posição relativa à faixa ideal
+  valor: number;
+  severity: StatusLevel; // severidade após a transição
 }
 
 export type AlertSeverity = "info" | "warn" | "crit";
@@ -73,7 +91,6 @@ export interface PoolState {
   // leituras atuais
   ph: number;
   cloro: number;
-  orp_mv: number;
   alcalinidade: number;
   temp_piscina: number;
   temp_coletor: number;
@@ -99,6 +116,7 @@ export interface PoolState {
   // eventos
   pumpLog: PumpEvent[];
   alerts: AggregatedAlert[];
+  cloroEvents: ChemEvent[]; // cruzamentos de faixa do Cloro (mais recente em [0])
 
   // recém-disparados (para animação)
   lastTickAt: number;

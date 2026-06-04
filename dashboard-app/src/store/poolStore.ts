@@ -13,7 +13,7 @@ import type { AggregatedAlert, ParameterKey, PoolState, PumpMode, SensorPoint } 
 import type { AquaSenseData } from "@/types/firmware";
 import { isSensorError } from "@/types/firmware";
 import {
-  clamp, decidePump, nextAlcalinidade, nextCloro, nextOrp, nextPh,
+  clamp, decidePump, nextCloro, nextAlcalinidade, nextPh,
   nextPoolTemp, nextSolarTemp, seedHistory,
 } from "@/lib/simulation";
 import { aggregateStatus, statusFor, THRESHOLDS } from "@/lib/thresholds";
@@ -227,16 +227,10 @@ interface Store extends PoolState {
   // Usado pela aba Controle para mostrar "última há 1h 23m" via useAgora.
   registerDoseCompleted: (chem: "cloro" | "acido" | "base", t: number) => void;
   ultimaDosePorProduto: { cloro: number | null; acido: number | null; base: number | null };
-  // FORK PT (Adição 1) — contador de ciclos consecutivos com cloro=0.0.
-  // Após 3+ ciclos, derivado `cloroEmErro` vira true e UI marca o sensor
-  // como provavelmente quebrado em vez de "preciso dosar mais".
-  _cloroZeroCount: number;
-  cloroEmErro: boolean;
   // Contadores de sessão acumulados (não persistidos).
   sessionAlertsOpened: number;
   sessionAlertsEscalated: number;
   sessionAlertsResolved: number;
-  _ticksSinceDose: number;
   _cloudLeft: number;
   _started: boolean;
   _intervalId: ReturnType<typeof setInterval> | null;
@@ -266,7 +260,6 @@ function buildInitial(): PoolState {
   return {
     ph: last.ph,
     cloro: last.cloro,
-    orp_mv: 710,
     alcalinidade: last.alcalinidade,
     temp_piscina: last.temp_piscina,
     temp_coletor: last.temp_coletor,
@@ -288,7 +281,34 @@ function buildInitial(): PoolState {
       { t: now.getTime() - 1000 * 60 * 130, ligada: true, motivo: "Auto: ΔT 6.1°C ≥ 5°C → LIGAR" },
     ],
     alerts: initialAlerts,
+    cloroEvents: [],
     lastTickAt: now.getTime(),
+  };
+}
+
+// Detecta cruzamento de faixa do Cloro entre duas leituras consecutivas.
+// Devolve um ChemEvent quando a leitura ENTRA ou SAI da faixa ideal
+// (1.0–3.0 ppm), ou `null` quando não há transição relevante.
+function detectChlorineEvent(prev: number, cur: number, now: number): import("@/types/aquasense").ChemEvent | null {
+  if (isSensorError(prev) || isSensorError(cur)) return null;
+  const prevStatus = statusFor("cloro", prev);
+  const curStatus = statusFor("cloro", cur);
+  const prevOk = prevStatus === "ok";
+  const curOk = curStatus === "ok";
+  if (prevOk === curOk) return null; // sem cruzamento de faixa
+  const t = THRESHOLDS.cloro;
+  const direcao: "baixo" | "alto" | "ideal" = curOk
+    ? "ideal"
+    : cur < t.idealMin
+      ? "baixo"
+      : "alto";
+  return {
+    t: now,
+    parametro: "cloro",
+    tipo: curOk ? "entrou_faixa" : "saiu_faixa",
+    direcao,
+    valor: cur,
+    severity: curStatus,
   };
 }
 
@@ -298,8 +318,6 @@ export const usePoolStore = create<Store>((set, get) => ({
   sessionAlertsEscalated: 0,
   sessionAlertsResolved: 0,
   ultimaDosePorProduto: { cloro: null, acido: null, base: null },
-  _cloroZeroCount: 0,
-  cloroEmErro: false,
   _ticksSinceDose: 0,
   _cloudLeft: 0,
   _started: false,
@@ -363,9 +381,8 @@ export const usePoolStore = create<Store>((set, get) => ({
     const ctrl = d.controle;
 
     const ph = wq.ph;
-    const cloro = wq.cloro_ppm;
-    const orp_mv = wq.orp_mv;
-    const alcalinidade = wq.alcalinidade_ppm;
+    const cloro = wq.cloro;
+    const alcalinidade = wq.alcalinidade;
     const temp_piscina = tp.piscina_C;
     const temp_coletor = tp.coletor_solar_C;
     const delta_t = typeof tp.delta_T === "number" ? tp.delta_T : (temp_coletor - temp_piscina);
@@ -411,7 +428,6 @@ export const usePoolStore = create<Store>((set, get) => ({
       // Para dados reais via MQTT, adicionamos cada amostra ao histórico
       // imediatamente (sem o gate de 5 min usado pela simulação local) — assim
       // os gráficos avançam em tempo real conforme o ESP32 publica.
-      // Evita duplicar pontos se vier mais de uma mensagem no mesmo segundo.
       const lastH = history[history.length - 1];
       if (!lastH || now - lastH.t >= 1000) {
         history = [...history, point].slice(-SIM.HISTORY_MAX);
@@ -420,25 +436,23 @@ export const usePoolStore = create<Store>((set, get) => ({
 
     const status_geral = aggregateStatus({ ph, cloro, alcalinidade, temp_piscina });
 
-    // FORK PT (Adição 1) — Cloro 0.0 ppm como erro de sensor.
-    // Após 3 ciclos consecutivos com cloro <= 0.05, marca o sensor como
-    // suspeito (provavelmente quebrado, não "preciso dosar mais").
-    const cloroIsZero = !isSensorError(cloro) && cloro <= 0.05;
-    const novoCount = cloroIsZero ? s._cloroZeroCount + 1 : 0;
-    const cloroEmErro = novoCount >= 3;
+    // Eventos discretos de cruzamento de faixa do Cloro (1.0–3.0 ppm).
+    const cloroEvt = detectChlorineEvent(s.cloro, cloro, now);
+    const cloroEvents = cloroEvt
+      ? [cloroEvt, ...s.cloroEvents].slice(0, POOL.CLORO_EVENT_MAX)
+      : s.cloroEvents;
 
     set({
-      ph, cloro, orp_mv, alcalinidade, temp_piscina, temp_coletor, delta_t,
+      ph, cloro, alcalinidade, temp_piscina, temp_coletor, delta_t,
       bomba_ligada,
       ultima_mudanca_bomba_t: ultima_mudanca,
       bomba_estado_desde_t: estado_desde,
       pumpLog, liveHistory, history,
       alerts: nextAlerts,
+      cloroEvents,
       status_geral,
       ultima_atualizacao_t: now,
       lastTickAt: now,
-      _cloroZeroCount: novoCount,
-      cloroEmErro,
       sessionAlertsOpened: s.sessionAlertsOpened + aggOut.stats.opened,
       sessionAlertsEscalated: s.sessionAlertsEscalated + aggOut.stats.escalations,
       sessionAlertsResolved: s.sessionAlertsResolved + aggOut.stats.resolved,
@@ -482,16 +496,15 @@ export const usePoolStore = create<Store>((set, get) => ({
       const temp_piscina = nextPoolTemp(s.temp_piscina, bomba_ligada, dtPre, date.getHours());
       const delta_t = temp_coletor - temp_piscina;
 
-      // Químicos
+      // Químicos / parâmetros de água (firmware v3.1: pH, cloro, alcalinidade)
       const ph = nextPh(s.ph);
-      const orp_mv = nextOrp(s.orp_mv);
-      const cloroOut = nextCloro(s.cloro, date.getHours(), s._ticksSinceDose);
+      const cloro = nextCloro(s.cloro);
       const alcalinidade = nextAlcalinidade(s.alcalinidade);
 
       // Alertas agregados — máquina de estado 3 ciclos abre / 5 fecha
       const aggReadings: ParamReading[] = [
         { key: "ph", value: ph },
-        { key: "cloro", value: cloroOut.value },
+        { key: "cloro", value: cloro },
         { key: "alcalinidade", value: alcalinidade },
         { key: "temp_piscina", value: temp_piscina },
       ];
@@ -500,7 +513,7 @@ export const usePoolStore = create<Store>((set, get) => ({
 
       // Update liveHistory (5s)
       const live = [...s.liveHistory, {
-        t: now, ph, cloro: cloroOut.value, alcalinidade,
+        t: now, ph, cloro, alcalinidade,
         temp_piscina, temp_coletor, bomba_ligada,
       }].slice(-SIM.LIVE_HISTORY_MAX);
 
@@ -509,26 +522,32 @@ export const usePoolStore = create<Store>((set, get) => ({
       const lastH = history[history.length - 1];
       if (!lastH || now - lastH.t >= SIM.HISTORY_STEP_MS) {
         history = [...history, {
-          t: now, ph, cloro: cloroOut.value, alcalinidade,
+          t: now, ph, cloro, alcalinidade,
           temp_piscina, temp_coletor, bomba_ligada,
         }].slice(-SIM.HISTORY_MAX);
       }
 
-      const status_geral = aggregateStatus({ ph, cloro: cloroOut.value, alcalinidade, temp_piscina });
+      const status_geral = aggregateStatus({ ph, cloro, alcalinidade, temp_piscina });
+
+      // Eventos discretos de cruzamento de faixa do Cloro (1.0–3.0 ppm).
+      const cloroEvt = detectChlorineEvent(s.cloro, cloro, now);
+      const cloroEvents = cloroEvt
+        ? [cloroEvt, ...s.cloroEvents].slice(0, POOL.CLORO_EVENT_MAX)
+        : s.cloroEvents;
 
       set({
-        ph, cloro: cloroOut.value, orp_mv, alcalinidade, temp_piscina, temp_coletor,
+        ph, cloro, alcalinidade, temp_piscina, temp_coletor,
         delta_t, bomba_ligada,
         ultima_mudanca_bomba_t: ultima_mudanca,
         bomba_estado_desde_t: estado_desde,
         pumpLog,
         liveHistory: live, history,
         alerts: nextAlerts,
+        cloroEvents,
         status_geral,
         ultima_atualizacao_t: now,
         uptime_s: s.uptime_s + 5,
         lastTickAt: now,
-        _ticksSinceDose: cloroOut.dosed ? 0 : s._ticksSinceDose + 1,
         _cloudLeft: cloudLeft,
         sessionAlertsOpened: s.sessionAlertsOpened + aggOut.stats.opened,
         sessionAlertsEscalated: s.sessionAlertsEscalated + aggOut.stats.escalations,

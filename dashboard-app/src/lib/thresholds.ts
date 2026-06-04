@@ -1,6 +1,7 @@
 import type { ParameterKey, StatusLevel, Thresholds } from "@/types/aquasense";
 
-// Faixas ABNT NBR 10818 — fonte única de verdade.
+// Faixas alinhadas ao firmware v3.1 — fonte única de verdade.
+// pH 7.2–7.6 | cloro 1.0–3.0 ppm | alcalinidade 80–120 ppm.
 export const THRESHOLDS: Record<ParameterKey, Thresholds> = {
   ph: {
     label: "pH",
@@ -14,15 +15,15 @@ export const THRESHOLDS: Record<ParameterKey, Thresholds> = {
     color: "var(--param-ph)",
   },
   cloro: {
-    label: "Cloro livre",
+    label: "Cloro",
     unit: "ppm",
     idealMin: 1.0,
     idealMax: 3.0,
-    warnMin: 0.6,
-    warnMax: 4.0,
+    warnMin: 0.5,
+    warnMax: 5.0,
     rangeMin: 0,
     rangeMax: 10,
-    color: "var(--param-cloro)",
+    color: "var(--param-orp)",
   },
   alcalinidade: {
     label: "Alcalinidade",
@@ -33,7 +34,7 @@ export const THRESHOLDS: Record<ParameterKey, Thresholds> = {
     warnMax: 150,
     rangeMin: 0,
     rangeMax: 200,
-    color: "var(--param-alc)",
+    color: "var(--param-cond)",
   },
   temp_piscina: {
     label: "Temp. Piscina",

@@ -8,7 +8,7 @@
 // FIFO de 20 entradas. Quando atinge 21, descarta a mais antiga.
 
 import { useCallback, useState } from "react";
-import type { ControlMode, DoseChemical } from "@/types/firmware";
+import type { DoseChemical } from "@/types/firmware";
 
 export const COMMAND_HISTORY_MAX = 20;
 
@@ -18,21 +18,13 @@ export type CommandResult =
   | { kind: "blocked"; reason: string; t: number }
   | { kind: "timeout" };
 
-export type CommandHistoryEntry =
-  | {
-      id: string;
-      t: number;
-      type: "mode";
-      payload: { mode: ControlMode };
-      result: CommandResult;
-    }
-  | {
-      id: string;
-      t: number;
-      type: "dose";
-      payload: { parameter: DoseChemical };
-      result: CommandResult;
-    };
+export type CommandHistoryEntry = {
+  id: string;
+  t: number;
+  type: "dose";
+  payload: { parameter: DoseChemical };
+  result: CommandResult;
+};
 
 function genId(): string {
   // crypto.randomUUID disponível em todo browser moderno + Node 19+.
@@ -67,19 +59,6 @@ export function updateEntry(
 export function useCommandHistory() {
   const [history, setHistory] = useState<CommandHistoryEntry[]>([]);
 
-  const addModeCommand = useCallback((mode: ControlMode): string => {
-    const id = genId();
-    setHistory((h) =>
-      pushEntry(h, {
-        id,
-        t: Date.now(),
-        type: "mode",
-        payload: { mode },
-        result: { kind: "pending" },
-      }),
-    );
-    return id;
-  }, []);
 
   const addDoseCommand = useCallback((parameter: DoseChemical): string => {
     const id = genId();
@@ -99,5 +78,5 @@ export function useCommandHistory() {
     setHistory((h) => updateEntry(h, id, result));
   }, []);
 
-  return { history, addModeCommand, addDoseCommand, resolveEntry };
+  return { history, addDoseCommand, resolveEntry };
 }

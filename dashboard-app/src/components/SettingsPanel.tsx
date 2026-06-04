@@ -59,8 +59,8 @@ export function SettingsPanel() {
         <Row k="Firmware" v={fw} />
         <Row k="Uptime" v={formatUptime(uptime)} />
         <Row k="Faixa ideal pH" v={`${THRESHOLDS.ph.idealMin} – ${THRESHOLDS.ph.idealMax}`} />
-        <Row k="Faixa ideal cloro" v={`${THRESHOLDS.cloro.idealMin.toFixed(1)} – ${THRESHOLDS.cloro.idealMax.toFixed(1)} ppm`} />
-        <Row k="Faixa ideal alcalinidade" v={`${THRESHOLDS.alcalinidade.idealMin} – ${THRESHOLDS.alcalinidade.idealMax} ppm CaCO₃`} />
+        <Row k="Faixa ideal cloro" v={`${THRESHOLDS.cloro.idealMin} – ${THRESHOLDS.cloro.idealMax} ppm`} />
+        <Row k="Faixa ideal alcalinidade" v={`${THRESHOLDS.alcalinidade.idealMin} – ${THRESHOLDS.alcalinidade.idealMax} ppm`} />
         <Row k="Faixa ideal temperatura" v={`${THRESHOLDS.temp_piscina.idealMin} – ${THRESHOLDS.temp_piscina.idealMax} °C`} />
         <Row k="Histerese da bomba" v="Liga ΔT ≥ 5°C · desliga ≤ 1°C" />
         <Row k="Anti-cycling" v="60 segundos" />

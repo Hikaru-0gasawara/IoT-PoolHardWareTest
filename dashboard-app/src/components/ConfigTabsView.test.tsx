@@ -17,7 +17,7 @@ import {
 
 const CONTENT: Record<ConfigTab, React.ReactNode> = {
   "controle-avancado": <div>PAINEL_CONTROLE</div>,
-  diagnostico: <div>PAINEL_DIAGNOSTICO</div>,
+  integracoes: <div>PAINEL_INTEGRACOES</div>,
   sobre: <div>PAINEL_SOBRE</div>,
 };
 
@@ -34,7 +34,7 @@ describe("ConfigTabsView — navegação por abas", () => {
     const triggers = screen.getAllByRole("tab");
     expect(triggers.map((t) => t.textContent)).toEqual([
       "Controle Avançado",
-      "Diagnóstico",
+      "Integrações",
       "Sobre",
     ]);
   });

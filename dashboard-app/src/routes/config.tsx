@@ -2,8 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { SettingsPanel } from "@/components/SettingsPanel";
-import { DiagnosticPanel } from "@/components/DiagnosticPanel";
 import { AdvancedControlPanel } from "@/components/AdvancedControlPanel";
+import { AlexaIntegration } from "@/components/AlexaIntegration";
 import { ConfigTabsView } from "@/components/ConfigTabsView";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import {
@@ -16,7 +16,7 @@ import {
 } from "@/routes/config.tabs";
 
 export const Route = createFileRoute("/config")({
-  // Deep link: /config?tab=sobre|controle-avancado|diagnostico
+  // Deep link: /config?tab=sobre|controle-avancado|integracoes
   validateSearch: (search: Record<string, unknown>): { tab?: ConfigTab } => {
     const tab = parseTabParam(search[TAB_SEARCH_KEY]);
     return tab ? { tab } : {};
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/config")({
 
 const TAB_CONTENT: Record<ConfigTab, React.ReactNode> = {
   "controle-avancado": <AdvancedControlPanel />,
-  diagnostico: <DiagnosticPanel />,
+  integracoes: <AlexaIntegration />,
   sobre: <SettingsPanel />,
 };
 
@@ -68,7 +68,7 @@ function ConfigPage() {
         <header className="mb-4">
           <h1 className="text-xl font-semibold text-aqua-text">Configurações</h1>
           <p className="text-sm text-aqua-text-muted">
-            Sistema, hardware ESP32, equipe do projeto e diagnóstico operacional.
+            Sistema, hardware ESP32, integração com Alexa e informações do projeto.
           </p>
         </header>
         <ConfigTabsView value={tab} onValueChange={handleChange} content={TAB_CONTENT} />

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as IntegracoesRouteImport } from './routes/integracoes'
 import { Route as GraficosRouteImport } from './routes/graficos'
 import { Route as ControleRouteImport } from './routes/controle'
 import { Route as ConfigRouteImport } from './routes/config'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntegracoesRoute = IntegracoesRouteImport.update({
+  id: '/integracoes',
+  path: '/integracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GraficosRoute = GraficosRouteImport.update({
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/config': typeof ConfigRoute
   '/controle': typeof ControleRoute
   '/graficos': typeof GraficosRoute
+  '/integracoes': typeof IntegracoesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/config': typeof ConfigRoute
   '/controle': typeof ControleRoute
   '/graficos': typeof GraficosRoute
+  '/integracoes': typeof IntegracoesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/config': typeof ConfigRoute
   '/controle': typeof ControleRoute
   '/graficos': typeof GraficosRoute
+  '/integracoes': typeof IntegracoesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRouteTypes {
@@ -80,9 +89,17 @@ export interface FileRouteTypes {
     | '/config'
     | '/controle'
     | '/graficos'
+    | '/integracoes'
     | '/sitemap.xml'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/alertas' | '/config' | '/controle' | '/graficos' | '/sitemap.xml'
+  to:
+    | '/'
+    | '/alertas'
+    | '/config'
+    | '/controle'
+    | '/graficos'
+    | '/integracoes'
+    | '/sitemap.xml'
   id:
     | '__root__'
     | '/'
@@ -90,6 +107,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/controle'
     | '/graficos'
+    | '/integracoes'
     | '/sitemap.xml'
   fileRoutesById: FileRoutesById
 }
@@ -99,6 +117,7 @@ export interface RootRouteChildren {
   ConfigRoute: typeof ConfigRoute
   ControleRoute: typeof ControleRoute
   GraficosRoute: typeof GraficosRoute
+  IntegracoesRoute: typeof IntegracoesRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
@@ -109,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/integracoes': {
+      id: '/integracoes'
+      path: '/integracoes'
+      fullPath: '/integracoes'
+      preLoaderRoute: typeof IntegracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/graficos': {
@@ -155,8 +181,18 @@ const rootRouteChildren: RootRouteChildren = {
   ConfigRoute: ConfigRoute,
   ControleRoute: ControleRoute,
   GraficosRoute: GraficosRoute,
+  IntegracoesRoute: IntegracoesRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

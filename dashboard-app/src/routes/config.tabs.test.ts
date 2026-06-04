@@ -25,14 +25,14 @@ describe("ordem das abas de /config", () => {
     expect(idxControle).toBeLessThan(idxSobre);
   });
 
-  it("a ordem renderizada é exatamente controle-avancado, diagnostico, sobre", () => {
-    expect(valores).toEqual(["controle-avancado", "diagnostico", "sobre"]);
+  it("a ordem renderizada é exatamente controle-avancado, integracoes, sobre", () => {
+    expect(valores).toEqual(["controle-avancado", "integracoes", "sobre"]);
   });
 
   it("os rótulos seguem a mesma ordem invertida", () => {
     expect(CONFIG_TABS.map((t) => t.label)).toEqual([
       "Controle Avançado",
-      "Diagnóstico",
+      "Integrações",
       "Sobre",
     ]);
   });
@@ -45,6 +45,7 @@ describe("ordem das abas de /config", () => {
   it("isConfigTab valida apenas as abas conhecidas", () => {
     expect(isConfigTab("sobre")).toBe(true);
     expect(isConfigTab("controle-avancado")).toBe(true);
+    expect(isConfigTab("integracoes")).toBe(true);
     expect(isConfigTab("inexistente")).toBe(false);
   });
 });
@@ -53,7 +54,7 @@ describe("deep links de /config (?tab=)", () => {
   it("parseTabParam aceita abas válidas e rejeita o resto", () => {
     expect(parseTabParam("sobre")).toBe("sobre");
     expect(parseTabParam("controle-avancado")).toBe("controle-avancado");
-    expect(parseTabParam("diagnostico")).toBe("diagnostico");
+    expect(parseTabParam("integracoes")).toBe("integracoes");
     expect(parseTabParam("xpto")).toBeNull();
     expect(parseTabParam(undefined)).toBeNull();
     expect(parseTabParam(123)).toBeNull();

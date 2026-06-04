@@ -28,7 +28,7 @@ Grupo 1 (controle de aquecimento) · Grupo 2 (qualidade da água): João Perestr
 - [Configuração](#configuração)
 - [Bibliotecas necessárias](#bibliotecas-necessárias)
 - [Como compilar e gravar](#como-compilar-e-gravar)
-- [Utilitário: apagar memória](#utilitário-apagar-memória)
+- [Utilitários de manutenção do ESP32](#utilitários-de-manutenção-do-esp32)
 - [Troubleshooting](#troubleshooting)
 - [Estrutura do repositório](#estrutura-do-repositório)
 
@@ -272,7 +272,23 @@ c=12 pH=7.40 Cl=2.00 Alc=100 ORP=700 Tp=28.0 Ts=30.0 dT=2.0 Um=65 B=OFF modo=aut
 
 ---
 
-## Utilitário: apagar memória
+## Utilitários de manutenção do ESP32
+
+### BlinkLimpaMemoria.ino
+
+Sketch minimalista na **raiz do repositório** (`BlinkLimpaMemoria.ino`). Grava-o no ESP32 para
+sobrescrever o firmware atual com um programa inerte: ele faz **um único blink** no LED onboard
+(GPIO 2) e para para sempre.
+
+**Quando usar:**
+
+- Verificar que o ciclo de upload funciona antes de regravar o `AquaSense.ino`.
+- Interromper um firmware em loop infinito sem precisar apagar a NVS/flash inteira.
+
+> **Não apaga a NVS.** Para limpar dados persistidos e credenciais de Wi-Fi, use
+> `ferramentas/ApagarMemoria/ApagarMemoria.ino` (ver abaixo) ou `esptool.py erase_flash`.
+
+### ApagarMemoria.ino
 
 Em `ferramentas/ApagarMemoria/ApagarMemoria.ino` há um **sketch separado** para "zerar" o ESP32:
 
@@ -309,6 +325,7 @@ Códigos `rc` são o retorno de `PubSubClient::state()` (traduzidos no Serial po
 
 ```
 AquaSense.ino                              ← firmware PRINCIPAL (ESP32 / Arduino C++) — protocolo PT v3.0
+BlinkLimpaMemoria.ino                      ← utilitário: sobrescreve firmware com um blink inerte
 README.md                                  ← esta documentação
 dashboard-app/                             ← dashboard web oficial (TanStack Start / React + TS)
   src/                                     ← componentes, store, provider MQTT, tópicos
