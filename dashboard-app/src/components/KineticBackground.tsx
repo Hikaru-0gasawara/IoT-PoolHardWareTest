@@ -43,6 +43,11 @@ export function KineticBackground({
     type P = { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; width: number };
     let particles: P[] = [];
 
+    type Ring = { x: number; y: number; r: number; maxR: number; alpha: number };
+    let rings: Ring[] = [];
+    let ringTimer = 0;
+    const RING_INTERVAL = 220; // frames (~3.6s at 60fps)
+
     const COUNT = Math.round(70 * density);
 
     function rand(min: number, max: number) {
@@ -62,6 +67,10 @@ export function KineticBackground({
         color: palette[Math.floor(Math.random() * palette.length)],
         width: rand(0.3, 0.9),
       };
+    }
+
+    function spawnRing() {
+      rings.push({ x: w / 2, y: h / 2, r: 0, maxR: Math.min(w, h) * 0.55, alpha: 0.55 });
     }
 
     // Campo de fluxo baseado em senos — cria as curvas suaves características.
@@ -88,10 +97,34 @@ export function KineticBackground({
     function step(t: number) {
       // Trilha: limpa parcialmente para criar rastro fino e elegante.
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "rgba(0,0,0,0.06)";
+      ctx.fillStyle = "rgba(0,0,0,0.055)";
       ctx.clearRect(0, 0, w, h);
 
       ctx.globalCompositeOperation = "lighter";
+
+      // Sonar rings — pulse from center, fade as they expand.
+      ringTimer++;
+      if (ringTimer >= RING_INTERVAL) { ringTimer = 0; spawnRing(); }
+      rings = rings.filter(ring => {
+        ring.r += (ring.maxR - ring.r) * 0.04; // ease-out expansion
+        ring.alpha *= 0.965;
+        if (ring.alpha < 0.008) return false;
+        ctx.beginPath();
+        ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+        ctx.strokeStyle = accent;
+        ctx.globalAlpha = ring.alpha;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        // Outer glow ring (wider, softer)
+        ctx.beginPath();
+        ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+        ctx.globalAlpha = ring.alpha * 0.35;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        return true;
+      });
+
+      // Flow-field particles
       for (const p of particles) {
         const a = flow(p.x, p.y, t);
         p.vx += Math.cos(a * Math.PI) * 0.04;
@@ -105,7 +138,7 @@ export function KineticBackground({
 
         const fade = Math.sin((p.life / p.max) * Math.PI); // entra e sai suave
         ctx.strokeStyle = p.color;
-        ctx.globalAlpha = Math.max(0, fade) * 0.5;
+        ctx.globalAlpha = Math.max(0, fade) * 0.55;
         ctx.lineWidth = p.width;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
@@ -129,6 +162,7 @@ export function KineticBackground({
     }
 
     resize();
+    spawnRing(); // immediate first pulse on mount
 
     if (isMotionReduced()) {
       // Quadro estático: roda alguns passos sem requestAnimationFrame.
