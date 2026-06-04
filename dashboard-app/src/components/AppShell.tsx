@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NavItem } from "@/components/NavItem";
 import { RouteTransition } from "@/components/RouteTransition";
 import { KineticBackground } from "@/components/KineticBackground";
+import { ShaderBackground } from "@/components/ShaderBackground";
 import { IntroScreen } from "@/components/IntroScreen";
 import { useNow } from "@/hooks/useNow";
 import { useConnection } from "@/hooks/useAquaSense";
@@ -269,9 +270,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative min-h-screen bg-aqua-bg text-aqua-text">
-      {/* Fundo cinético global (estilo aten7) — sutil atrás de todo o conteúdo */}
+      {/* Fundo global em camadas, sutil atrás de todo o conteúdo:
+          1) shader.se — gradiente orgânico "respirando" + film grain (WebGL)
+          2) aten7 — linhas cinéticas + anéis de sonar (canvas 2D)
+          3) vinheta radial para foco central e legibilidade do conteúdo */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
-        <KineticBackground density={0.8} opacity={0.22} />
+        <ShaderBackground opacity={0.5} />
+        <KineticBackground density={0.7} opacity={0.16} />
         <div
           className="absolute inset-0"
           style={{
