@@ -113,7 +113,7 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
 
   if (loading) {
     return (
-      <article className="flex min-h-[13.5rem] flex-col rounded-3xl border border-aqua-border bg-aqua-surface p-6">
+      <article data-tile className="flex min-h-[13.5rem] flex-col rounded-3xl border border-aqua-border bg-aqua-surface p-6">
         <div className="text-label">{t.label}</div>
         <div className="text-display-large mt-2 text-aqua-text-muted opacity-60">—</div>
         <p className="mt-3 text-xs text-aqua-text-muted">Aguardando primeiro ciclo do ESP32…</p>
@@ -125,6 +125,7 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
 
   return (
     <article
+      data-tile
       tabIndex={0}
       className={[
         "group tile-interactive flex min-h-[13.5rem] flex-col rounded-3xl border bg-aqua-surface p-6 shadow-sm cursor-default",

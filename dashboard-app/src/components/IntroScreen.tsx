@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { animate, MOTION } from "@/lib/motion";
+import { animate, createTimeline, stagger, MOTION } from "@/lib/motion";
 import { isMotionReduced } from "@/hooks/useReducedMotion";
 import { KineticBackground } from "@/components/KineticBackground";
 
@@ -39,22 +39,26 @@ export function IntroScreen() {
 
     const letters = titleRef.current?.querySelectorAll<HTMLElement>("[data-letter]");
     if (letters && letters.length) {
-      letters.forEach((el, i) => {
-        animate(el, {
-          opacity: [0, 1],
-          translateY: [28, 0],
-          duration: MOTION.duration.base,
-          delay: reduced ? 0 : 120 + i * 55,
-          ease: MOTION.easeInOut,
-        });
+      const tl = createTimeline({ defaults: { ease: MOTION.easeInOut } });
+      tl.add(letters, {
+        opacity: [0, 1],
+        translateY: [28, 0],
+        duration: MOTION.duration.base,
+        delay: reduced ? 0 : stagger(55, { start: 120 }),
       });
-    }
-    if (subRef.current) {
+      if (subRef.current) {
+        tl.add(subRef.current, {
+          opacity: [0, 1],
+          translateY: [12, 0],
+          duration: MOTION.duration.base,
+          ease: MOTION.ease,
+        }, reduced ? 0 : "+=80");
+      }
+    } else if (subRef.current) {
       animate(subRef.current, {
         opacity: [0, 1],
         translateY: [12, 0],
         duration: MOTION.duration.base,
-        delay: reduced ? 0 : 700,
         ease: MOTION.ease,
       });
     }

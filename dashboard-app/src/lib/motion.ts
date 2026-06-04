@@ -1,18 +1,21 @@
-import { animate as animeAnimate, utils, createSpring } from "animejs";
+import {
+  animate as animeAnimate,
+  utils,
+  createSpring,
+  createTimeline as animeCreateTimeline,
+  stagger as animeStagger,
+} from "animejs";
 import { isMotionReduced } from "@/hooks/useReducedMotion";
 
-// Wrapper único sobre anime.js (v4). Centraliza duas garantias:
-//   1) Acessibilidade: quando "reduzir movimento" está ativo (toggle do
-//      usuário OU prefers-reduced-motion do SO), as animações NÃO rodam —
-//      em vez disso o alvo é colocado imediatamente no estado final, mantendo
-//      o mesmo layout/resultado visual sem transição.
-//   2) Consistência: easing e durações padrão num só lugar para reuso.
-
 export const MOTION = {
-  // Easing e durações compartilhados para sensação coerente em todo o app.
   ease: "outQuad" as const,
   easeInOut: "inOutQuad" as const,
+  // smooth — default for ΔT markers, route transitions
   spring: createSpring({ stiffness: 80, damping: 18 }),
+  // snappy — hover micro-interactions, nav active state
+  springMicro: createSpring({ stiffness: 220, damping: 28 }),
+  // elastic — celebratory pops (dose complete, status flip)
+  springBounce: createSpring({ stiffness: 55, damping: 8 }),
   duration: {
     fast: 180,
     base: 320,
@@ -23,34 +26,33 @@ export const MOTION = {
 type Targets = Parameters<typeof animeAnimate>[0];
 type Params = Parameters<typeof animeAnimate>[1];
 
-// Executa uma animação respeitando "reduzir movimento".
-// Quando reduzido: aplica as propriedades finais instantaneamente (sem tween),
-// dispara onComplete e retorna null.
+function extractFinals(params: Record<string, unknown>): Record<string, unknown> {
+  const skip = new Set([
+    "duration","delay","ease","easing","loop","alternate",
+    "autoplay","onComplete","onBegin","onUpdate","composition",
+  ]);
+  const finals: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (skip.has(key)) continue;
+    if (value && typeof value === "object" && "to" in (value as object)) {
+      finals[key] = (value as { to: unknown }).to;
+    } else if (Array.isArray(value)) {
+      finals[key] = value[value.length - 1];
+    } else {
+      finals[key] = value;
+    }
+  }
+  return finals;
+}
+
+// Wraps anime.js animate() — applies final values immediately when
+// reduced-motion is active instead of running the tween.
 export function animate(targets: Targets, params: Params) {
   if (isMotionReduced()) {
-    const finals: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
-      if (
-        key === "duration" || key === "delay" || key === "ease" ||
-        key === "easing" || key === "loop" || key === "alternate" ||
-        key === "autoplay" || key === "onComplete" || key === "onBegin" ||
-        key === "onUpdate" || key === "composition"
-      ) {
-        continue;
-      }
-      // Suporta forma {to,from} ou array [from,to] ou valor simples.
-      if (value && typeof value === "object" && "to" in (value as object)) {
-        finals[key] = (value as { to: unknown }).to;
-      } else if (Array.isArray(value)) {
-        finals[key] = value[value.length - 1];
-      } else {
-        finals[key] = value;
-      }
-    }
     try {
-      utils.set(targets, finals as Params);
+      utils.set(targets, extractFinals(params as Record<string, unknown>) as Params);
     } catch {
-      // alvo inexistente — ignore
+      // target not in DOM — ignore
     }
     const onComplete = (params as { onComplete?: (...a: unknown[]) => void })?.onComplete;
     if (typeof onComplete === "function") onComplete();
@@ -59,4 +61,33 @@ export function animate(targets: Targets, params: Params) {
   return animeAnimate(targets, params);
 }
 
-export { utils as animeUtils };
+// Wraps createTimeline — each .add() still applies finals immediately
+// when reduced-motion is active so elements don't stay invisible.
+type TimelineParams = Parameters<typeof animeCreateTimeline>[0];
+type TimelineAddParams = Record<string, unknown>;
+
+interface NoopTimeline {
+  add(targets: unknown, props: TimelineAddParams, offset?: unknown): NoopTimeline;
+}
+
+function makeNoopTimeline(): NoopTimeline {
+  const noop: NoopTimeline = {
+    add(targets, props) {
+      try {
+        utils.set(targets as Targets, extractFinals(props) as Params);
+      } catch {
+        // ignore
+      }
+      return noop;
+    },
+  };
+  return noop;
+}
+
+export function createTimeline(params?: TimelineParams) {
+  if (isMotionReduced()) return makeNoopTimeline();
+  return animeCreateTimeline(params);
+}
+
+// Re-exports for direct use in components.
+export { animeStagger as stagger, utils as animeUtils };
