@@ -157,6 +157,8 @@ export function Header() {
                 <Link
                   key={item.to}
                   to={item.to}
+                  data-testid={`nav-link-${item.to === "/" ? "home" : item.to.slice(1)}`}
+                  data-active={active ? "true" : "false"}
                   className={cn(
                     "rounded-lg px-3 py-1.5 text-sm transition-colors",
                     active ? "bg-aqua-surface-2 text-aqua-text" : "text-aqua-text-muted hover:text-aqua-text",
@@ -177,6 +179,8 @@ export function Header() {
             to="/config"
             aria-label="Abrir configurações"
             title="Configurações"
+            data-testid="gear-config"
+            data-active={location.pathname.startsWith("/config") ? "true" : "false"}
             className={cn(
               "ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors lg:hidden",
               location.pathname.startsWith("/config")
