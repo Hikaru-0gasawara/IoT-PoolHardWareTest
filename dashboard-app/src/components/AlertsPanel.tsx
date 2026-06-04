@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
+import { animate, MOTION } from "@/lib/motion";
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Inbox, ShieldCheck } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
@@ -211,10 +212,20 @@ function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; 
   const since = isResolved && alert.resolvido_em ? alert.resolvido_em : alert.iniciado_em;
   const duration = (alert.resolvido_em ?? now) - alert.iniciado_em;
 
+  const liRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!liRef.current) return;
+    animate(liRef.current, {
+      opacity: [0, 1],
+      translateX: [-8, 0],
+      duration: MOTION.duration.base,
+      ease: MOTION.ease,
+    });
+  }, []);
+
   return (
-    <motion.li
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
+    <li
+      ref={liRef}
       className={cn(
         "flex items-start gap-3 rounded-xl border p-3 transition-opacity",
         isResolved && "opacity-60",
@@ -290,6 +301,6 @@ function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; 
           </button>
         )}
       </div>
-    </motion.li>
+    </li>
   );
 }

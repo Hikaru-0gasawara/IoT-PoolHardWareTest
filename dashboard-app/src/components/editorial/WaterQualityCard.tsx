@@ -1,6 +1,7 @@
 import { AlertOctagon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { THRESHOLDS, statusFor, statusColor } from "@/lib/thresholds";
 import type { ParameterKey } from "@/types/aquasense";
+import { AnimatedNumber } from "@/components/editorial/AnimatedNumber";
 
 // Card editorial de qualidade da água — número grande tipo display, slider
 // posicional dentro da faixa, drift vs 1h e linha descritiva curta.
@@ -112,7 +113,7 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
 
   if (loading) {
     return (
-      <article className="rounded-2xl border border-aqua-border bg-aqua-surface p-5">
+      <article className="flex min-h-[13.5rem] flex-col rounded-3xl border border-aqua-border bg-aqua-surface p-6">
         <div className="text-label">{t.label}</div>
         <div className="text-display-large mt-2 text-aqua-text-muted opacity-60">—</div>
         <p className="mt-3 text-xs text-aqua-text-muted">Aguardando primeiro ciclo do ESP32…</p>
@@ -120,11 +121,13 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
     );
   }
 
+  const statusChip = status === "ok" ? "Ideal" : status === "warn" ? "Atenção" : "Crítico";
+
   return (
     <article
       tabIndex={0}
       className={[
-        "group tile-interactive rounded-2xl border bg-aqua-surface p-5 shadow-sm cursor-default",
+        "group tile-interactive flex min-h-[13.5rem] flex-col rounded-3xl border bg-aqua-surface p-6 shadow-sm cursor-default",
         "transition-all duration-200 ease-out",
         "hover:-translate-y-0.5 hover:shadow-lg",
         "active:translate-y-0 active:shadow-sm active:scale-[0.99]",
@@ -151,6 +154,17 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
             travado
           </span>
         )}
+        {!dosing && !estopActive && !sensorError && (
+          <span
+            className="rounded-md px-2 py-0.5 text-[10px] font-bold"
+            style={{
+              backgroundColor: `color-mix(in oklab, ${sColor} 12%, transparent)`,
+              color: sColor,
+            }}
+          >
+            {statusChip}
+          </span>
+        )}
       </header>
 
       <div className="mt-2 flex items-baseline justify-between gap-1.5">
@@ -161,7 +175,7 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
         ) : (
           <>
             <span className="flex items-baseline gap-1.5">
-              <span className="text-display-large text-aqua-text">{value.toFixed(decimals)}</span>
+              <AnimatedNumber value={value} decimals={decimals} className="text-display-large text-aqua-text" />
               {t.unit && <span className="text-sm text-aqua-text-muted">{t.unit}</span>}
             </span>
             {!estopActive && trend && <TrendIndicator series={trend} decimals={decimals} />}

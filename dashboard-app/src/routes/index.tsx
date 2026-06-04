@@ -6,7 +6,7 @@ import { SolarSystemHero } from "@/components/editorial/SolarSystemHero";
 import { WaterQualityCard } from "@/components/editorial/WaterQualityCard";
 import { MqttLog } from "@/components/MqttLog";
 import { exportDailyReport } from "@/lib/exportDailyReport";
-import { ChlorineEventLog } from "@/components/ChlorineEventLog";
+import { DosingModePanel } from "@/components/editorial/DosingModePanel";
 import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
@@ -100,13 +100,22 @@ function HomePage() {
           </button>
         </header>
 
-        <SolarSystemHero
-          tempPiscina={tempPool}
-          tempColetor={tempSolar}
-          deltaT={deltaT}
-          bombaOn={bombaOn}
-          estado={heroEstado}
-        />
+        <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <SolarSystemHero
+              tempPiscina={tempPool}
+              tempColetor={tempSolar}
+              deltaT={deltaT}
+              bombaOn={bombaOn}
+              estado={heroEstado}
+              dataEmpty={loading}
+            />
+          </div>
+          <div className="lg:col-span-1 flex">
+            <DosingModePanel show="mode" />
+          </div>
+        </div>
+
 
         <section aria-labelledby="qualidade-heading" className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -159,7 +168,7 @@ function HomePage() {
           </div>
         </section>
 
-        <ChlorineEventLog />
+        <DosingModePanel show="dose" />
 
         <MqttLog />
       </div>

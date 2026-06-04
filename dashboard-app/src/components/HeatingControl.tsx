@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
+import { animate, MOTION } from "@/lib/motion";
 import { Power, Bot, Cpu, Info } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
@@ -22,6 +23,18 @@ export function HeatingControl() {
 
   // ΔT bar position (-5 a +20)
   const dtPos = ((dt + 5) / 25) * 100;
+
+  // Marcador ΔT animado via anime.js (substitui o spring do framer-motion),
+  // mantendo a mesma sensação elástica. Respeita "reduzir movimento".
+  const dtMarkerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!dtMarkerRef.current) return;
+    animate(dtMarkerRef.current, {
+      left: `${dtPos}%`,
+      duration: MOTION.duration.base,
+      ease: MOTION.spring,
+    });
+  }, [dtPos]);
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr]">
@@ -86,11 +99,10 @@ export function HeatingControl() {
             <div className="absolute inset-y-0 left-0 bg-status-ok/30" style={{ width: `${(6 / 25) * 100}%` }} />
             <div className="absolute inset-y-0 bg-status-warn/25" style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }} />
             <div className="absolute inset-y-0 bg-aqua-accent/30" style={{ left: `${(10 / 25) * 100}%`, right: 0 }} />
-            <motion.div
+            <div
+              ref={dtMarkerRef}
               className="absolute top-0 h-full w-1 rounded shadow-lg"
-              style={{ backgroundColor: "var(--aqua-text)" }}
-              animate={{ left: `${dtPos}%` }}
-              transition={{ type: "spring", stiffness: 80, damping: 18 }}
+              style={{ backgroundColor: "var(--aqua-text)", left: `${dtPos}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center text-xs font-tabular font-semibold text-aqua-text drop-shadow">
               ΔT = {dt.toFixed(1)}°C

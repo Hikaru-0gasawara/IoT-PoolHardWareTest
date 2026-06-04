@@ -65,3 +65,166 @@ export const PUBLISHED_TOPICS: readonly MqttTopic[] = [
   MQTT_TOPICS.DADOS,
   MQTT_TOPICS.DOSAGEM_EVENTO,
 ] as const;
+
+// ─────────────────────────────────────────────────────────────────────
+// Mapeamento exato comando/telemetria → tópico MQTT.
+//
+// Fonte única de verdade para a documentação exibida no painel de
+// Diagnóstico (Controle avançado). Cada controle/leitura aponta para:
+//   - o tópico MQTT efetivamente usado,
+//   - a direção (comando = dashboard→firmware, telemetria = firmware→dashboard),
+//   - o campo do payload consolidado `.../dados` quando a UI lê de lá,
+//   - o tópico granular informativo equivalente (quando existe).
+//
+// IMPORTANTE: a UI consome SEMPRE o payload consolidado em `.../dados`
+// (campo `field`). Os tópicos granulares são publicados pelo firmware
+// apenas para inspeção no Log MQTT — não alimentam o estado.
+// ─────────────────────────────────────────────────────────────────────
+
+export type TopicDirection = "comando" | "telemetria";
+
+export interface TopicMapEntry {
+  /** Chave estável (casa com os ids de sensor do diagnóstico quando aplicável). */
+  id: string;
+  /** Nome amigável do controle/leitura. */
+  label: string;
+  /** Tópico MQTT efetivo do comando/telemetria. */
+  topic: MqttTopic | typeof TOPIC_DOSING_COMMAND | typeof TOPIC_CONTROL_MODE;
+  /** Direção do fluxo. */
+  direction: TopicDirection;
+  /** Campo lido no payload consolidado `.../dados`, quando a UI usa ele. */
+  field?: string;
+  /** Tópico granular equivalente publicado pelo firmware (informativo). */
+  granular?: MqttTopic;
+  /** Exemplo/descrição do payload. */
+  payload: string;
+}
+
+// Comandos publicados pelo dashboard (controles).
+export const COMMAND_TOPIC_MAP: readonly TopicMapEntry[] = [
+  {
+    id: "dose-cloro",
+    label: "Dose de Cloro",
+    topic: TOPIC_DOSING_COMMAND,
+    direction: "comando",
+    payload: `{ parametro: "cloro", origem: "manual", comando_id }`,
+  },
+  {
+    id: "dose-acido",
+    label: "Dose de Ácido (pH−)",
+    topic: TOPIC_DOSING_COMMAND,
+    direction: "comando",
+    payload: `{ parametro: "acido", origem: "manual", comando_id }`,
+  },
+  {
+    id: "dose-base",
+    label: "Dose de Base (pH+)",
+    topic: TOPIC_DOSING_COMMAND,
+    direction: "comando",
+    payload: `{ parametro: "base", origem: "manual", comando_id }`,
+  },
+  {
+    id: "modo-operacao",
+    label: "Modo de operação da bomba",
+    topic: TOPIC_CONTROL_MODE,
+    direction: "comando",
+    payload: `{ modo: "automatico" | "manual" }`,
+  },
+] as const;
+
+// Telemetria recebida do firmware (leituras do diagnóstico).
+export const TELEMETRY_TOPIC_MAP: readonly TopicMapEntry[] = [
+  {
+    id: "ph",
+    label: "pH",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "ph",
+    granular: MQTT_TOPICS.PISCINA_PH,
+    payload: "dados.ph (float; -99 = erro de sensor)",
+  },
+  {
+    id: "cloro",
+    label: "Cloro",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "cloro",
+    granular: MQTT_TOPICS.PISCINA_CLORO,
+    payload: "dados.cloro (ppm; -99 = erro de sensor)",
+  },
+  {
+    id: "alcalinidade",
+    label: "Alcalinidade",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "alcalinidade",
+    granular: MQTT_TOPICS.PISCINA_ALCALINIDADE,
+    payload: "dados.alcalinidade (ppm; -99 = erro de sensor)",
+  },
+  {
+    id: "piscina",
+    label: "Temp. piscina",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "temp_piscina",
+    granular: MQTT_TOPICS.PISCINA_TEMP,
+    payload: "dados.temp_piscina (°C; -99 = erro de sensor)",
+  },
+  {
+    id: "coletor",
+    label: "Temp. coletor",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "temp_coletor",
+    granular: MQTT_TOPICS.COLETOR_TEMP,
+    payload: "dados.temp_coletor (°C; -99 = erro de sensor)",
+  },
+  {
+    id: "delta_t",
+    label: "ΔT",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "delta_t",
+    payload: "dados.delta_t (°C; derivado coletor − piscina)",
+  },
+  {
+    id: "bomba",
+    label: "Estado da bomba",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "bomba",
+    granular: MQTT_TOPICS.COLETOR_BOMBA,
+    payload: 'dados.bomba ("LIGADA" | "DESLIGADA")',
+  },
+  {
+    id: "alertas",
+    label: "Alertas",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "alertas",
+    granular: MQTT_TOPICS.SISTEMA_ALERTAS,
+    payload: "dados.alertas (string[])",
+  },
+  {
+    id: "ciclo",
+    label: "Ciclo",
+    topic: MQTT_TOPICS.DADOS,
+    direction: "telemetria",
+    field: "ciclo",
+    granular: MQTT_TOPICS.SISTEMA_SAUDE,
+    payload: "dados.ciclo (contador sequencial; detecta gaps)",
+  },
+  {
+    id: "dosagem-evento",
+    label: "Evento de dosagem",
+    topic: MQTT_TOPICS.DOSAGEM_EVENTO,
+    direction: "telemetria",
+    payload: "{ parametro, evento, motivo?, fonte }",
+  },
+] as const;
+
+// Mapeamento completo (comandos + telemetria) para consumo na UI.
+export const TOPIC_MAP: readonly TopicMapEntry[] = [
+  ...COMMAND_TOPIC_MAP,
+  ...TELEMETRY_TOPIC_MAP,
+] as const;

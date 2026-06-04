@@ -9,6 +9,7 @@ interface Props {
   deltaT: number;
   bombaOn: boolean;
   estado: "circulando" | "parada" | "emergencia";
+  dataEmpty?: boolean;
 }
 
 function fmtTemp(v: number): string {
@@ -16,7 +17,7 @@ function fmtTemp(v: number): string {
   return `${v.toFixed(1)}°`;
 }
 
-export function SolarSystemHero({ tempPiscina, tempColetor, deltaT, bombaOn, estado }: Props) {
+export function SolarSystemHero({ tempPiscina, tempColetor, deltaT, bombaOn, estado, dataEmpty = false }: Props) {
   const flow = estado === "emergencia" ? "var(--status-crit)" : bombaOn ? "var(--flow)" : "var(--aqua-border)";
   const flowOpacity = bombaOn && estado !== "emergencia" ? 1 : 0.4;
   const badgeLabel = estado === "emergencia" ? "● parada de emergência"
@@ -31,7 +32,7 @@ export function SolarSystemHero({ tempPiscina, tempColetor, deltaT, bombaOn, est
   return (
     <section
       aria-labelledby="hero-heading"
-      className="rounded-3xl border border-aqua-border bg-gradient-to-br from-aqua-surface to-aqua-surface-2 p-6 shadow-aqua sm:p-8"
+      className="flex h-full flex-col rounded-[2rem] border border-aqua-border bg-gradient-to-br from-aqua-surface to-aqua-surface-2 p-6 shadow-aqua sm:p-8"
     >
       <header className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
         <div>
@@ -40,14 +41,25 @@ export function SolarSystemHero({ tempPiscina, tempColetor, deltaT, bombaOn, est
           </h2>
           <p className="mt-1 text-sm text-aqua-text-muted">Piscina · Bomba · Coletor — visão integrada do circuito.</p>
         </div>
-        <span
-          role="status"
-          aria-live="polite"
-          className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium"
-          style={badgeStyle}
-        >
-          {badgeLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden={!dataEmpty}
+            className={[
+              "inline-flex items-center gap-1 rounded-full border border-aqua-border px-2 py-1 text-[10px] font-medium text-aqua-text-muted transition-opacity duration-300",
+              dataEmpty ? "opacity-100" : "opacity-0 pointer-events-none",
+            ].join(" ")}
+          >
+            ○ sem dados
+          </span>
+          <span
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium"
+            style={badgeStyle}
+          >
+            {badgeLabel}
+          </span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 items-center gap-4 lg:grid-cols-[1fr_1.4fr_1fr]">

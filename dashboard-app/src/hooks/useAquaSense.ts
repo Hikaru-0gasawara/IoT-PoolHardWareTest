@@ -102,3 +102,8 @@ export function useDosingResponses(): DosingResponse[] {
 export function usePublishDosingCommand() {
   return useMqtt().publishDosingCommand;
 }
+
+// Publica o modo de operação da bomba (controle/modo). Throttle de 1s.
+export function usePublishControlMode() {
+  return useMqtt().publishControlMode;
+}

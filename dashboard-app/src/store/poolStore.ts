@@ -227,6 +227,9 @@ interface Store extends PoolState {
   // Usado pela aba Controle para mostrar "última há 1h 23m" via useAgora.
   registerDoseCompleted: (chem: "cloro" | "acido" | "base", t: number) => void;
   ultimaDosePorProduto: { cloro: number | null; acido: number | null; base: number | null };
+  // Doses CONCLUÍDAS na sessão (epoch ms + produto). Usado para contar
+  // dosagens do dia por produto no painel. Não persistido.
+  doseTimestamps: { chem: "cloro" | "acido" | "base"; t: number }[];
   // Contadores de sessão acumulados (não persistidos).
   sessionAlertsOpened: number;
   sessionAlertsEscalated: number;
@@ -318,6 +321,7 @@ export const usePoolStore = create<Store>((set, get) => ({
   sessionAlertsEscalated: 0,
   sessionAlertsResolved: 0,
   ultimaDosePorProduto: { cloro: null, acido: null, base: null },
+  doseTimestamps: [],
   _ticksSinceDose: 0,
   _cloudLeft: 0,
   _started: false,
@@ -325,7 +329,10 @@ export const usePoolStore = create<Store>((set, get) => ({
 
   registerDoseCompleted: (chem, t) => {
     const s = get();
-    set({ ultimaDosePorProduto: { ...s.ultimaDosePorProduto, [chem]: t } });
+    set({
+      ultimaDosePorProduto: { ...s.ultimaDosePorProduto, [chem]: t },
+      doseTimestamps: [...s.doseTimestamps, { chem, t }].slice(-200),
+    });
   },
 
   setSetpoint: (v) => {

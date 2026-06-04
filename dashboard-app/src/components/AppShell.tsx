@@ -3,6 +3,10 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Droplets, RefreshCw, Settings } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NavItem } from "@/components/NavItem";
+import { RouteTransition } from "@/components/RouteTransition";
+import { KineticBackground } from "@/components/KineticBackground";
+import { IntroScreen } from "@/components/IntroScreen";
 import { useNow } from "@/hooks/useNow";
 import { useConnection } from "@/hooks/useAquaSense";
 import { statusColor, statusLabel } from "@/lib/thresholds";
@@ -93,18 +97,25 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-aqua-border bg-aqua-bg/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-aqua-primary to-aqua-accent shadow-glow-accent">
-            <Droplets className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="leading-tight">
-            <div className="font-semibold tracking-tight text-aqua-text">AquaSense</div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-aqua-text-muted">IoT · Pool monitor</div>
-          </div>
-        </Link>
+        {/* Logo + status de conexão agrupados */}
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-aqua-primary to-aqua-accent shadow-glow-accent">
+              <Droplets className="h-5 w-5 text-white" strokeWidth={2.5} />
+            </div>
+            <div className="leading-tight">
+              <div className="font-semibold tracking-tight text-aqua-text">AquaSense</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-aqua-text-muted">IoT · Pool monitor</div>
+            </div>
+          </Link>
 
-        {/* System bar — uma única verdade. Pílula só aparece se água NÃO está OK. */}
+          {/* Status MQTT próximo ao logo */}
+          <div className="hidden md:block">
+            <MqttStatusPill conn={conn} now={now} updatedTxt={updatedTxt} />
+          </div>
+        </div>
+
+        {/* System bar — pílulas de alerta de água ou silêncio crítico */}
         <div className="hidden items-center gap-3 md:flex">
           {showStatusPill && (
             <div
@@ -143,31 +154,21 @@ export function Header() {
             </div>
           )}
 
-          {/* Indicador visível de status MQTT — sempre presente para confirmar
-              que o dashboard está recebendo atualizações (retidas ou ao vivo). */}
-          <MqttStatusPill conn={conn} now={now} updatedTxt={updatedTxt} />
+          {/* A pílula MQTT foi movida para junto do logo */}
         </div>
 
         {/* Desktop nav + theme toggle */}
         <div className="flex items-center gap-1">
           <nav className="mr-2 hidden items-center gap-1 lg:flex">
-            {NAV.map((item) => {
-              const active = location.pathname === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  data-testid={`nav-link-${item.to === "/" ? "home" : item.to.slice(1)}`}
-                  data-active={active ? "true" : "false"}
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-sm transition-colors",
-                    active ? "bg-aqua-surface-2 text-aqua-text" : "text-aqua-text-muted hover:text-aqua-text",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+            {NAV.map((item) => (
+              <NavItem
+                key={item.to}
+                to={item.to}
+                label={item.label}
+                active={location.pathname === item.to}
+                testId={`nav-link-${item.to === "/" ? "home" : item.to.slice(1)}`}
+              />
+            ))}
           </nav>
 
           <ThemeToggle />
@@ -267,8 +268,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-aqua-bg text-aqua-text">
-      <Header />
+    <div className="relative min-h-screen bg-aqua-bg text-aqua-text">
+      {/* Fundo cinético global (estilo aten7) — sutil atrás de todo o conteúdo */}
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
+        <KineticBackground density={0.8} opacity={0.22} />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 30%, transparent 0%, color-mix(in oklab, var(--aqua-bg) 55%, transparent) 75%, var(--aqua-bg) 100%)",
+          }}
+        />
+      </div>
+
+      <IntroScreen />
+
+      <div className="relative z-10">
+        <Header />
 
       {showFallbackBanner && (
         <div
@@ -289,9 +305,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <main className="mx-auto max-w-[1400px] px-4 pb-24 pt-6 sm:px-6 lg:pb-10">
-        {children}
+        <RouteTransition>{children}</RouteTransition>
       </main>
       <MobileTabBar />
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// MqttProvider — fonte única de dados em tempo real do ESP32 (firmware v3.1).
+// MqttProvider — fonte única de dados em tempo real do ESP32 (firmware v3.0).
 //
 // Conecta ao HiveMQ Cloud (wss://...hivemq.cloud:8884/mqtt) e assina aquasense-ibmec-pt/#.
 // Fonte de verdade da UI: o payload consolidado (retain) publicado em
@@ -32,10 +32,12 @@ import {
   type MqttConnectionStatus,
   type MqttContextValue,
   type MqttLogEntry,
+  type SensorFailureCounts,
   type WaterStatus,
+  isSensorError,
 } from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
-import { MQTT_TOPICS, TOPIC_DOSING_COMMAND } from "@/lib/mqttTopics";
+import { MQTT_TOPICS, TOPIC_DOSING_COMMAND, TOPIC_CONTROL_MODE } from "@/lib/mqttTopics";
 import {
   type GapDetectorState,
   createGapDetector,
@@ -68,7 +70,9 @@ const MqttContext = createContext<MqttContextValue>({
   messagesReceivedCount: 0,
   providerMountedAt: 0,
   dosingResponses: [],
+  sensorFailures: { ph: 0, cloro: 0, alcalinidade: 0, piscina: 0, coletor: 0 },
   publishDosingCommand: noopAsync,
+  publishControlMode: noopAsync,
 });
 
 const SENTINEL = -99.0;
@@ -223,6 +227,13 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   const [gapState, setGapState] = useState<GapDetectorState>(() => createGapDetector());
   const [messagesReceivedCount, setMessagesReceivedCount] = useState(0);
   const [dosingResponses, setDosingResponses] = useState<DosingResponse[]>([]);
+  const [sensorFailures, setSensorFailures] = useState<SensorFailureCounts>({
+    ph: 0,
+    cloro: 0,
+    alcalinidade: 0,
+    piscina: 0,
+    coletor: 0,
+  });
   const [providerMountedAt] = useState(() => Date.now());
 
   const clientRef = useRef<ReturnType<typeof mqtt.connect> | null>(null);
@@ -278,6 +289,9 @@ export function MqttProvider({ children }: { children: ReactNode }) {
             const next = [resp, ...prev];
             return next.length > RESPONSES_MAX ? next.slice(0, RESPONSES_MAX) : next;
           });
+          if (r.data.evento === "concluida") {
+            usePoolStore.getState().registerDoseCompleted(r.data.parametro, now);
+          }
         } catch {
           /* JSON inválido — ignora */
         }
@@ -303,6 +317,19 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       if (typeof parsed.ciclo === "number") {
         setGapState((s) => pushCycle(s, parsed.ciclo, now));
       }
+
+      // Contadores de falha por sensor — incrementa quando a leitura chega
+      // com o valor sentinela de erro (-99) neste snapshot.
+      const wq = parsed.qualidade_agua;
+      const tp = parsed.temperaturas;
+      setSensorFailures((prev) => ({
+        ph: prev.ph + (isSensorError(wq.ph) ? 1 : 0),
+        cloro: prev.cloro + (isSensorError(wq.cloro) ? 1 : 0),
+        alcalinidade: prev.alcalinidade + (isSensorError(wq.alcalinidade) ? 1 : 0),
+        piscina: prev.piscina + (isSensorError(tp.piscina_C) ? 1 : 0),
+        coletor: prev.coletor + (isSensorError(tp.coletor_solar_C) ? 1 : 0),
+      }));
+
 
       usePoolStore.getState().ingestFromMqtt(parsed);
       usePoolStore.getState()._stopSimulation?.();
@@ -364,6 +391,12 @@ export function MqttProvider({ children }: { children: ReactNode }) {
     [publishWithThrottle],
   );
 
+  const publishControlMode = useCallback(
+    (modo: "automatico" | "manual") =>
+      publishWithThrottle(TOPIC_CONTROL_MODE, { modo }, `controle:modo`),
+    [publishWithThrottle],
+  );
+
   const value = useMemo<MqttContextValue>(
     () => ({
       status,
@@ -377,7 +410,9 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       messagesReceivedCount,
       providerMountedAt,
       dosingResponses,
+      sensorFailures,
       publishDosingCommand,
+      publishControlMode,
     }),
     [
       status,
@@ -390,7 +425,9 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       messagesReceivedCount,
       providerMountedAt,
       dosingResponses,
+      sensorFailures,
       publishDosingCommand,
+      publishControlMode,
     ],
   );
 
