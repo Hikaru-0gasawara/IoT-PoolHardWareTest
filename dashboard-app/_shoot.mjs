@@ -41,8 +41,8 @@ async function serveRoute(route) {
   let p = decodeURIComponent(url.pathname);
   let fsPath = join(DIST, p);
   if (p === "/" || !existsSync(fsPath) || extname(fsPath) === "") {
-    // SPA fallback → shell
-    fsPath = join(DIST, "index.html");
+    // SPA fallback → shell (build SPA emite _shell.html, não index.html)
+    fsPath = join(DIST, "_shell.html");
   }
   try {
     const body = readFileSync(fsPath);
