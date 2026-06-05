@@ -129,10 +129,12 @@ export function nextSolarTemp(prev: number, date: Date, cloudTicksLeft: number):
 }
 
 // Lógica de histerese ΔT 5/1 com anti-cycling de 60s
+import type { PumpMode } from "@/types/aquasense";
+
 export interface PumpDecisionInput {
   bombaOn: boolean;
   deltaT: number;
-  modo: "automatico" | "manual";
+  modo: PumpMode;
   agora: number;
   ultimaMudanca: number;
 }
@@ -141,6 +143,9 @@ export function decidePump(input: PumpDecisionInput): { newState: boolean; reaso
   const elapsed = (input.agora - input.ultimaMudanca) / 1000;
   const canChange = elapsed >= SIM.ANTI_CYCLING_S;
 
+  if (input.modo === "parado") {
+    return { newState: false, reason: "Sistema parado — bomba desativada", canChange };
+  }
   if (input.modo === "manual") {
     return { newState: input.bombaOn, reason: "Modo manual", canChange };
   }

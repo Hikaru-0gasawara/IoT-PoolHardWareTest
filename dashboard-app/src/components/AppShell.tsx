@@ -72,7 +72,6 @@ function MqttStatusPill({ conn, now, updatedTxt, mobile }: MqttStatusPillProps) 
 const NAV = [
   { to: "/", label: "Visão Geral" },
   { to: "/graficos", label: "Gráficos" },
-  { to: "/controle", label: "Aquecimento" },
   { to: "/alertas", label: "Alertas" },
   { to: "/config", label: "Configurações" },
 ] as const;
@@ -230,8 +229,8 @@ export function MobileTabBar() {
   const items = [
     { to: "/", label: "Home", icon: "◐" },
     { to: "/graficos", label: "Gráficos", icon: "≋" },
-    { to: "/controle", label: "Aquecim.", icon: "⚙" },
     { to: "/alertas", label: "Alertas", icon: "!" },
+    { to: "/config", label: "Config.", icon: "⚙" },
   ] as const;
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-aqua-border bg-aqua-surface/95 backdrop-blur-xl lg:hidden">

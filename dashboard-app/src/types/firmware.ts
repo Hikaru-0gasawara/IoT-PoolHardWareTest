@@ -114,8 +114,8 @@ export interface MqttContextValue {
   publishDosingCommand: (parameter: DoseChemical) => Promise<void>;
   // Publica o modo da BOMBA de aquecimento solar (controle/modo). Throttle de
   // 1s; rejeita quando desconectado.
-  publishControlMode: (modo: "automatico" | "manual") => Promise<void>;
+  publishControlMode: (modo: import("@/types/aquasense").PumpMode) => Promise<void>;
   // Publica o modo da DOSAGEM química (controle/dosagem/modo), independente da
   // bomba. Throttle de 1s; rejeita quando desconectado.
-  publishDosingMode: (modo: "automatico" | "manual") => Promise<void>;
+  publishDosingMode: (modo: import("@/types/aquasense").PumpMode) => Promise<void>;
 }

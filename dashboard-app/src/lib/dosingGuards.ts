@@ -82,6 +82,7 @@ export function reasonToBlockDose(ctx: DoseGuardContext): string | null {
   if (!hasLiveFirmware) return "Sem telemetria real do ESP32 — comandos bloqueados";
 
   // 2. Modo de operação
+  if (modo === "parado") return "Dosagem parada — ative o modo manual para dosar";
   if (modo === "automatico") return "Modo automático — troque para manual para dosar";
 
   // 3. Sensor com erro

@@ -393,13 +393,13 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   );
 
   const publishControlMode = useCallback(
-    (modo: "automatico" | "manual") =>
+    (modo: import("@/types/aquasense").PumpMode) =>
       publishWithThrottle(TOPIC_CONTROL_MODE, { modo }, `controle:modo`),
     [publishWithThrottle],
   );
 
   const publishDosingMode = useCallback(
-    (modo: "automatico" | "manual") =>
+    (modo: import("@/types/aquasense").PumpMode) =>
       publishWithThrottle(TOPIC_DOSING_MODE, { modo }, `dosagem:modo`),
     [publishWithThrottle],
   );

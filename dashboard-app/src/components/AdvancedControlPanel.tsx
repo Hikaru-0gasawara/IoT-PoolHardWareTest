@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   FlaskConical,
   Beaker,
@@ -24,8 +24,11 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
-
+  Ban,
+  Cpu,
+  ShieldAlert,
 } from "lucide-react";
+import { animate, MOTION } from "@/lib/motion";
 import { useMqtt } from "@/providers/MqttProvider";
 import { HoldButton } from "@/components/HoldButton";
 import { MqttLog } from "@/components/MqttLog";
@@ -34,6 +37,7 @@ import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { useNow } from "@/hooks/useNow";
 import { POOL } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import {
   COMMAND_TOPIC_MAP,
   TELEMETRY_TOPIC_MAP,
@@ -41,16 +45,14 @@ import {
 } from "@/lib/mqttTopics";
 import { reasonToBlockDose as computeBlockReason } from "@/lib/dosingGuards";
 import type { DoseChemical, DosingResponse } from "@/types/firmware";
+import type { PumpMode } from "@/types/aquasense";
 
-// Mapeamento canônico dos 3 produtos químicos das dosadoras peristálticas.
-// Tom da UI segue a categoria de risco percebida (cloro = mais crítico).
 const CHEMICALS: ReadonlyArray<{
   key: DoseChemical;
   label: string;
   subtitle: string;
   tone: "danger" | "warn";
   icon: React.ReactNode;
-  /** Parâmetro do `data` que precisa estar válido para liberar dose */
   sensorPath: "cloro" | "ph";
 }> = [
   {
@@ -82,19 +84,15 @@ const CHEMICALS: ReadonlyArray<{
 export function AdvancedControlPanel() {
   return (
     <div className="space-y-4">
-      {/* Painel funcional — comandos ativos + estado em tempo real */}
       <LivePanel />
-      {/* Controle de operação da bomba + setpoint de temperatura */}
       <OperationPanel />
-      {/* Diagnóstico — sensores, conexão MQTT e log */}
       <DiagnosticsPanel />
     </div>
   );
 }
 
-
 // ────────────────────────────────────────────────────────────────────
-// Painel funcional — comandos ativos + estado em tempo real
+// Painel funcional — dosagem manual + modo dosagem
 // ────────────────────────────────────────────────────────────────────
 
 function LivePanel() {
@@ -135,17 +133,16 @@ function LivePanel() {
     }
   };
 
-  const handleDosingMode = async (m: "automatico" | "manual") => {
+  const handleDosingMode = async (m: PumpMode) => {
     setDosingMode(m);
     try {
       await publishDosingMode(m);
-      showFeedback("ok", `Modo de dosagem enviado: ${m}`);
+      showFeedback("ok", `Modo de dosagem: ${m}`);
     } catch (e) {
       showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar modo");
     }
   };
 
-  // Razão de bloqueio para cada dose. Retorna null = liberado.
   const reasonToBlockDose = (chem: DoseChemical): string | null => {
     const meta = CHEMICALS.find((c) => c.key === chem);
     const sensorValue = meta && data
@@ -163,7 +160,6 @@ function LivePanel() {
     });
   };
 
-  // Formata "há 1h 23m" / "há 5min" / "há 12s".
   const formatSince = (t: number | null): string | null => {
     if (t == null) return null;
     const diff = Math.max(0, now - t);
@@ -178,25 +174,21 @@ function LivePanel() {
   return (
     <section
       className="rounded-xl border border-aqua-border bg-aqua-surface p-4"
-      aria-label="Painel de controle ativo"
+      aria-label="Painel de dosagem"
     >
-      {/* Header */}
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent" aria-hidden>
             <Settings2 className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-aqua-text">Painel operacional</h2>
-            <p className="text-[11px] text-aqua-text-muted">
-              Dosagem manual via MQTT — estado em tempo real
-            </p>
+            <h2 className="text-sm font-semibold text-aqua-text">Dosagem química</h2>
+            <p className="text-[11px] text-aqua-text-muted">Modo de dosagem e comandos manuais via MQTT</p>
           </div>
         </div>
         <ConnectionPill brokerConnected={brokerConnected} hasLiveFirmware={hasLiveFirmware} />
       </div>
 
-      {/* Cards de estado em tempo real */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <StatusCard
           label="Bomba"
@@ -218,7 +210,6 @@ function LivePanel() {
         />
       </div>
 
-      {/* Feedback efêmero */}
       {feedback && (
         <div
           role="status"
@@ -234,12 +225,12 @@ function LivePanel() {
         </div>
       )}
 
-      {/* Modo de dosagem — independente da bomba de aquecimento */}
+      {/* Modo de dosagem — 3 opções */}
       <div className="mt-4">
         <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
           Modo de dosagem
         </h3>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <ModeButton
             active={modo === "automatico"}
             disabled={!brokerConnected}
@@ -256,6 +247,15 @@ function LivePanel() {
             sub="Só doses do operador"
             onClick={() => handleDosingMode("manual")}
           />
+          <ModeButton
+            active={modo === "parado"}
+            disabled={!brokerConnected}
+            icon={<Ban className="h-4 w-4" />}
+            label="Parado"
+            sub="Sem dosagem alguma"
+            onClick={() => handleDosingMode("parado")}
+            tone="danger"
+          />
         </div>
       </div>
 
@@ -265,9 +265,7 @@ function LivePanel() {
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
             Dose manual
           </h3>
-          <span className="text-[10px] text-aqua-text-muted">
-            Segure 1.5s para confirmar
-          </span>
+          <span className="text-[10px] text-aqua-text-muted">Segure 1.5s para confirmar</span>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {CHEMICALS.map((c) => {
@@ -292,7 +290,6 @@ function LivePanel() {
         </div>
       </div>
 
-      {/* Últimas respostas de dosagem */}
       <div className="mt-4">
         <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
           Últimas respostas
@@ -425,49 +422,93 @@ function ResultBadge({ kind }: { kind: DosingResponse["resultado"] }) {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Painel de operação — modo da bomba + setpoint de temperatura
+// Painel de operação — bomba de aquecimento solar completa + parada geral
 // ────────────────────────────────────────────────────────────────────
 
 function OperationPanel() {
-  const { status, publishControlMode } = useMqtt();
+  const { status, publishControlMode, publishDosingMode } = useMqtt();
   const modo = usePoolStore((s) => s.bomba_modo);
   const setMode = usePoolStore((s) => s.setMode);
+  const setDosingMode = usePoolStore((s) => s.setDosingMode);
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
   const togglePumpManual = usePoolStore((s) => s.togglePumpManual);
+  const ultimaMudanca = usePoolStore((s) => s.ultima_mudanca_bomba_t);
+  const dt = usePoolStore((s) => s.delta_t);
+  const log = usePoolStore((s) => s.pumpLog);
   const setpoint = usePoolStore((s) => s.setpoint_temp);
   const setSetpoint = usePoolStore((s) => s.setSetpoint);
+  const now = useNow(1000);
+  const dtMarkerRef = useRef<HTMLDivElement>(null);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const brokerConnected = status === "connected";
+  const isManual = modo === "manual";
+  const isParado = modo === "parado";
+  const elapsed = (now - ultimaMudanca) / 1000;
+  const remaining = Math.max(0, 60 - elapsed);
+  const canChange = remaining <= 0;
+  const dtPos = ((dt + 5) / 25) * 100;
+
+  useEffect(() => {
+    if (!dtMarkerRef.current) return;
+    animate(dtMarkerRef.current, {
+      left: `${dtPos}%`,
+      duration: MOTION.duration.base,
+      ease: MOTION.spring,
+    });
+  }, [dtPos]);
 
   const showFeedback = (kind: "ok" | "err", text: string) => {
     setFeedback({ kind, text });
     window.setTimeout(() => setFeedback(null), 3000);
   };
 
-  const handleMode = async (m: "automatico" | "manual") => {
+  const handleMode = async (m: PumpMode) => {
     setMode(m);
     try {
       await publishControlMode(m);
-      showFeedback("ok", `Modo enviado: ${m}`);
+      showFeedback("ok", `Modo da bomba: ${m}`);
     } catch (e) {
       showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar modo");
     }
   };
 
+  const handleStopBoth = async () => {
+    setMode("parado");
+    setDosingMode("parado");
+    try {
+      await Promise.all([publishControlMode("parado"), publishDosingMode("parado")]);
+      showFeedback("ok", "Bomba e dosagem pausadas");
+    } catch (e) {
+      showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar parada");
+    }
+  };
+
+  const infoText = isParado
+    ? "Sistema parado: a bomba está desligada e a dosagem bloqueada. Selecione um modo para reativar."
+    : isManual
+      ? "Modo manual: o operador liga/desliga a bomba. Anti-cycling de 60s preserva o equipamento."
+      : "Modo automático: o ESP32 aciona a bomba via histerese ΔT 5°C / 1°C com anti-cycling de 60s.";
+
   return (
     <section
       className="rounded-xl border border-aqua-border bg-aqua-surface p-4"
-      aria-label="Controle de operação"
+      aria-label="Controle de aquecimento solar"
     >
       <div className="mb-3 flex items-center gap-2">
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent" aria-hidden>
           <Power className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="text-sm font-semibold text-aqua-text">Operação da bomba</h2>
-          <p className="text-[11px] text-aqua-text-muted">Modo de controle e temperatura alvo</p>
+          <h2 className="text-sm font-semibold text-aqua-text">Aquecimento solar</h2>
+          <p className="text-[11px] text-aqua-text-muted">Bomba de circulação · modo, estado e histerese ΔT</p>
         </div>
+      </div>
+
+      {/* Info contextual */}
+      <div className="mb-3 flex items-start gap-2 rounded-xl border border-aqua-border bg-aqua-surface-2 p-3 text-xs text-aqua-text-muted">
+        <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-aqua-accent" />
+        <span>{infoText}</span>
       </div>
 
       {feedback && (
@@ -485,11 +526,11 @@ function OperationPanel() {
         </div>
       )}
 
-      {/* Modo de operação */}
+      {/* Modo da bomba — 3 opções */}
       <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
-        Modo de operação
+        Modo da bomba
       </h3>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <ModeButton
           active={modo === "automatico"}
           disabled={!brokerConnected}
@@ -503,34 +544,126 @@ function OperationPanel() {
           disabled={!brokerConnected}
           icon={<Hand className="h-4 w-4" />}
           label="Manual"
-          sub="Controle direto da bomba"
+          sub="Controle direto"
           onClick={() => handleMode("manual")}
         />
+        <ModeButton
+          active={modo === "parado"}
+          disabled={!brokerConnected}
+          icon={<Ban className="h-4 w-4" />}
+          label="Parado"
+          sub="Bomba desativada"
+          onClick={() => handleMode("parado")}
+          tone="danger"
+        />
+      </div>
+      {!brokerConnected && (
+        <p className="mt-1 text-[11px] text-status-warn">Sem conexão MQTT — troca de modo indisponível.</p>
+      )}
+
+      {/* Estado da bomba */}
+      <div className="mt-4">
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
+          Bomba
+        </h3>
+        <div
+          className={cn(
+            "flex w-full items-center justify-between rounded-xl border-2 p-3",
+            bombaOn
+              ? "border-flow bg-flow/10 text-flow"
+              : "border-aqua-border bg-aqua-surface-2 text-aqua-text-muted",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full",
+                bombaOn ? "bg-flow/20 aqua-pulse" : "bg-aqua-surface",
+              )}
+            >
+              <Power className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">{bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}</div>
+              <div className="text-[10px] text-aqua-text-muted">
+                {canChange ? "Pronta para próximo acionamento" : `Anti-cycling: ${Math.ceil(remaining)}s`}
+              </div>
+            </div>
+          </div>
+          {!canChange && <CountdownRing seconds={Math.ceil(remaining)} />}
+        </div>
+
+        {isManual && (
+          <div className="mt-2">
+            <HoldButton
+              tone={bombaOn ? "warn" : "danger"}
+              icon={<Power className="h-4 w-4" />}
+              disabled={!canChange}
+              disabledReason={!canChange ? `Anti-cycling: aguarde ${Math.ceil(remaining)}s` : undefined}
+              onConfirm={() => togglePumpManual()}
+              subtitle="Segure 1.5s para confirmar"
+            >
+              {bombaOn ? "Desligar bomba" : "Ligar bomba"}
+            </HoldButton>
+          </div>
+        )}
       </div>
 
-      {/* Acionamento manual da bomba */}
+      {/* Histerese ΔT */}
+      <div className="mt-4">
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
+          Histerese ΔT
+        </h3>
+        <div className="relative h-8 overflow-hidden rounded-full border border-aqua-border bg-aqua-bg">
+          <div className="absolute inset-y-0 left-0 bg-status-ok/30" style={{ width: `${(6 / 25) * 100}%` }} />
+          <div className="absolute inset-y-0 bg-status-warn/25" style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }} />
+          <div className="absolute inset-y-0 bg-aqua-accent/30" style={{ left: `${(10 / 25) * 100}%`, right: 0 }} />
+          <div
+            ref={dtMarkerRef}
+            className="absolute top-0 h-full w-1 rounded shadow-lg"
+            style={{ backgroundColor: "var(--aqua-text)", left: `${dtPos}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-tabular font-semibold text-aqua-text drop-shadow">
+            ΔT = {dt.toFixed(1)}°C
+          </div>
+        </div>
+        <div className="mt-1 flex justify-between text-[10px] text-aqua-text-muted">
+          <span>−5°C OFF</span>
+          <span>1°C zona morta</span>
+          <span>+5°C ON</span>
+          <span>+20°C</span>
+        </div>
+      </div>
+
+      {/* Log de acionamentos */}
+      <div className="mt-4">
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
+          Acionamentos recentes
+        </h3>
+        <ul className="space-y-1">
+          {log.slice(0, 4).map((e, i) => (
+            <li key={`${e.t}-${i}`} className="flex items-start gap-2 rounded-lg bg-aqua-surface-2/40 p-2 text-xs">
+              <span
+                className={cn(
+                  "mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                  e.ligada ? "bg-flow" : "bg-aqua-text-muted",
+                )}
+              />
+              <div className="flex-1">
+                <div className="font-tabular text-aqua-text">
+                  {new Date(e.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
+                </div>
+                <div className="text-aqua-text-muted">{e.motivo}</div>
+              </div>
+            </li>
+          ))}
+          {log.length === 0 && <li className="text-[11px] text-aqua-text-muted">Sem acionamentos.</li>}
+        </ul>
+      </div>
+
+      {/* Temperatura alvo */}
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
-            Bomba
-          </h3>
-          <span className="text-[10px] text-aqua-text-muted">Segure 1.5s para confirmar</span>
-        </div>
-        <HoldButton
-          tone={bombaOn ? "warn" : "danger"}
-          icon={<Power className="h-4 w-4" />}
-          disabled={modo !== "manual"}
-          disabledReason={modo !== "manual" ? "Disponível apenas no modo manual" : undefined}
-          onConfirm={() => togglePumpManual()}
-          subtitle={bombaOn ? "Bomba ligada" : "Bomba desligada"}
-        >
-          {bombaOn ? "Desligar bomba" : "Ligar bomba"}
-        </HoldButton>
-      </div>
-
-      {/* Setpoint de temperatura */}
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
             Temperatura alvo
           </h3>
@@ -571,7 +704,52 @@ function OperationPanel() {
           <span>{POOL.SETPOINT_MAX}°C</span>
         </div>
       </div>
+
+      {/* Parada geral — para bomba e dosagem simultaneamente */}
+      <div className="mt-5 rounded-xl border border-status-crit/20 bg-status-crit/5 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-status-crit" />
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-status-crit">
+            Parada geral
+          </h3>
+        </div>
+        <p className="mb-2 text-[11px] text-aqua-text-muted">
+          Pausa bomba de aquecimento e dosagem química ao mesmo tempo. Requer confirmação.
+        </p>
+        <HoldButton
+          tone="danger"
+          icon={<ShieldAlert className="h-4 w-4" />}
+          disabled={!brokerConnected}
+          disabledReason={!brokerConnected ? "Sem conexão MQTT" : undefined}
+          onConfirm={handleStopBoth}
+          subtitle="Segure 1.5s para confirmar parada"
+        >
+          Parar bomba e dosagem
+        </HoldButton>
+      </div>
     </section>
+  );
+}
+
+function CountdownRing({ seconds }: { seconds: number }) {
+  const pct = (seconds / 60) * 100;
+  const dash = (1 - pct / 100) * 113;
+  return (
+    <div className="relative h-10 w-10 shrink-0">
+      <svg viewBox="0 0 40 40" className="h-full w-full -rotate-90">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="var(--aqua-border)" strokeWidth="3" />
+        <circle
+          cx="20" cy="20" r="18" fill="none"
+          stroke="var(--status-warn)" strokeWidth="3"
+          strokeDasharray="113"
+          strokeDashoffset={dash}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center font-tabular text-[10px] font-semibold text-status-warn">
+        {seconds}s
+      </div>
+    </div>
   );
 }
 
@@ -582,6 +760,7 @@ function ModeButton({
   label,
   sub,
   onClick,
+  tone = "default",
 }: {
   active: boolean;
   disabled?: boolean;
@@ -589,21 +768,32 @@ function ModeButton({
   label: string;
   sub: string;
   onClick: () => void;
+  tone?: "default" | "danger";
 }) {
+  const isDanger = tone === "danger";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
-      className={
-        "flex items-start gap-2 rounded-xl border-2 p-3 text-left transition-colors disabled:opacity-50 " +
-        (active
-          ? "border-aqua-accent bg-aqua-accent/10 text-aqua-text"
-          : "border-aqua-border bg-aqua-surface-2/40 text-aqua-text-muted hover:border-aqua-accent/50")
-      }
+      className={cn(
+        "flex items-start gap-2 rounded-xl border-2 p-3 text-left transition-colors disabled:opacity-50",
+        active
+          ? isDanger
+            ? "border-status-crit bg-status-crit/10 text-aqua-text"
+            : "border-aqua-accent bg-aqua-accent/10 text-aqua-text"
+          : isDanger
+            ? "border-aqua-border bg-aqua-surface-2/40 text-aqua-text-muted hover:border-status-crit/50"
+            : "border-aqua-border bg-aqua-surface-2/40 text-aqua-text-muted hover:border-aqua-accent/50",
+      )}
     >
-      <span className={active ? "text-aqua-accent" : ""} aria-hidden>{icon}</span>
+      <span
+        className={active ? (isDanger ? "text-status-crit" : "text-aqua-accent") : ""}
+        aria-hidden
+      >
+        {icon}
+      </span>
       <span className="flex-1">
         <span className="block text-sm font-semibold text-aqua-text">{label}</span>
         <span className="block text-[10px] text-aqua-text-muted">{sub}</span>
@@ -624,7 +814,6 @@ function DiagnosticsPanel() {
   const wq = data?.qualidade_agua;
   const tp = data?.temperaturas;
 
-  // Telemetria só é considerada "viva" quando a fonte real está ativa.
   const live = conn.source === "mqtt" && conn.status === "connected";
 
   const fmtVal = (v: number | undefined, unit: string, digits = 1) => {
@@ -632,7 +821,6 @@ function DiagnosticsPanel() {
     return `${v.toFixed(digits)}${unit}`;
   };
 
-  // Online = fonte real viva, valor presente e sem erro de sensor.
   const sensorOnline = (v: number | undefined): boolean =>
     live && v !== undefined && !isSensorError(v);
 
@@ -641,7 +829,6 @@ function DiagnosticsPanel() {
     latencyMs != null ? `${Math.round(latencyMs / 1000)}s atrás` : "—";
   const latencyStr =
     latencyMs == null ? "—" : latencyMs < 1000 ? `${latencyMs}ms` : `${(latencyMs / 1000).toFixed(1)}s`;
-  // Latência alta: sem msg há mais de ~3 ciclos (15s) sinaliza atenção.
   const latencyTone: SensorTone =
     latencyMs == null ? "neutral" : latencyMs > 15000 ? "crit" : latencyMs > 8000 ? "warn" : "ok";
   const uptime = Math.max(0, Math.round((now - conn.providerMountedAt) / 1000));
@@ -669,7 +856,6 @@ function DiagnosticsPanel() {
         </div>
       </div>
 
-      {/* Sensores */}
       <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
         Sensores
       </h3>
@@ -682,7 +868,6 @@ function DiagnosticsPanel() {
         <SensorTile icon={<Thermometer className="h-3.5 w-3.5" />} label="ΔT" value={fmtVal(tp?.delta_T, "°C")} tone="neutral" online={sensorOnline(tp?.delta_T)} />
       </div>
 
-      {/* Conexão */}
       <h3 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
         Conexão MQTT
       </h3>
@@ -699,10 +884,8 @@ function DiagnosticsPanel() {
         Última mensagem {lastMsgAgo} · gaps de ciclo: {conn.totalGaps} · sessão ativa há {uptimeStr} · valor de erro de sensor: {SENSOR_ERROR_VALUE}
       </div>
 
-      {/* Mapeamento de tópicos MQTT */}
       <TopicMapSection />
 
-      {/* Log bruto */}
       <div className="mt-4">
         <MqttLog />
       </div>
@@ -710,8 +893,6 @@ function DiagnosticsPanel() {
   );
 }
 
-// Documentação no painel: mapeamento exato comando/telemetria → tópico MQTT.
-// Fonte única em src/lib/mqttTopics.ts (COMMAND_TOPIC_MAP / TELEMETRY_TOPIC_MAP).
 function TopicMapSection() {
   const [open, setOpen] = useState(false);
   return (
@@ -787,9 +968,7 @@ function SensorTile({
   label: string;
   value: string;
   tone: SensorTone;
-  /** Quando definido, exibe um ponto de status online (verde) / offline (vermelho). */
   online?: boolean;
-  /** Contador de falhas de leitura na sessão. Exibido quando > 0. */
   failures?: number;
 }) {
   const toneClass =

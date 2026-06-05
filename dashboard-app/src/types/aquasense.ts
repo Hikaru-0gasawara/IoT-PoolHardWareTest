@@ -9,7 +9,7 @@ export type ParameterKey = "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "t
 
 export type StatusLevel = "ok" | "warn" | "crit";
 
-export type PumpMode = "automatico" | "manual";
+export type PumpMode = "automatico" | "manual" | "parado";
 
 export interface SensorPoint {
   t: number; // epoch ms

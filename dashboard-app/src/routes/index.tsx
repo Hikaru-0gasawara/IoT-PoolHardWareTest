@@ -7,6 +7,7 @@ import { WaterQualityCard } from "@/components/editorial/WaterQualityCard";
 import { MqttLog } from "@/components/MqttLog";
 import { exportDailyReport } from "@/lib/exportDailyReport";
 import { DosingModePanel } from "@/components/editorial/DosingModePanel";
+import { HeatingModeWidget } from "@/components/editorial/HeatingModeWidget";
 import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
@@ -111,7 +112,8 @@ function HomePage() {
               dataEmpty={loading}
             />
           </div>
-          <div className="lg:col-span-1 flex">
+          <div className="lg:col-span-1 flex flex-col gap-4">
+            <HeatingModeWidget />
             <DosingModePanel show="mode" />
           </div>
         </div>
