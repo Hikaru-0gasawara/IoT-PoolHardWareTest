@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { isMotionReduced } from "@/hooks/useReducedMotion";
 
 // Fundo "shader" inspirado no shader.se: um campo de gradiente orgânico que
-// "respira" (domain-warped fbm) na paleta da marca (grafite → verde-menta),
+// "respira" (domain-warped fbm) na paleta da marca (navy → ciano),
 // com film grain sutil sobreposto — a textura de "fita 80s" característica.
 // Implementação em WebGL puro (sem Three.js / dependências novas). Lê o tema
 // atual (claro/escuro) para casar a paleta. Respeita "reduzir movimento":
@@ -84,14 +84,14 @@ void main() {
 // Paletas aproximadas (sRGB lineares-ish) casando os tokens oklch da marca.
 const PALETTE = {
   dark: {
-    bg: [0.086, 0.098, 0.09] as const,
-    mid: [0.14, 0.16, 0.148] as const,
-    accent: [0.42, 0.82, 0.6] as const,
+    bg: [0.06, 0.09, 0.14] as const,
+    mid: [0.10, 0.15, 0.22] as const,
+    accent: [0.0, 0.71, 0.85] as const,        /* #00B4D8 ciano */
   },
   light: {
-    bg: [0.965, 0.972, 0.965] as const,
-    mid: [0.9, 0.93, 0.91] as const,
-    accent: [0.4, 0.68, 0.52] as const,
+    bg: [0.95, 0.965, 0.985] as const,
+    mid: [0.89, 0.92, 0.97] as const,
+    accent: [0.18, 0.52, 0.78] as const,
   },
 };
 
