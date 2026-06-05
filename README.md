@@ -276,7 +276,7 @@ c=12 pH=7.40 Cl=2.00 Alc=100 ORP=700 Tp=28.0 Ts=30.0 dT=2.0 Um=65 B=OFF modo=aut
 
 ### BlinkLimpaMemoria.ino
 
-Sketch minimalista na **raiz do repositório** (`BlinkLimpaMemoria.ino`). Grava-o no ESP32 para
+Sketch minimalista em **`ferramentas/BlinkLimpaMemoria/`** (`ferramentas/BlinkLimpaMemoria/BlinkLimpaMemoria.ino`). Grava-o no ESP32 para
 sobrescrever o firmware atual com um programa inerte: ele faz **um único blink** no LED onboard
 (GPIO 2) e para para sempre.
 
@@ -285,21 +285,8 @@ sobrescrever o firmware atual com um programa inerte: ele faz **um único blink*
 - Verificar que o ciclo de upload funciona antes de regravar o `AquaSense.ino`.
 - Interromper um firmware em loop infinito sem precisar apagar a NVS/flash inteira.
 
-> **Não apaga a NVS.** Para limpar dados persistidos e credenciais de Wi-Fi, use
-> `ferramentas/ApagarMemoria/ApagarMemoria.ino` (ver abaixo) ou `esptool.py erase_flash`.
-
-### ApagarMemoria.ino
-
-Em `ferramentas/ApagarMemoria/ApagarMemoria.ino` há um **sketch separado** para "zerar" o ESP32:
-
-- Apaga toda a partição **NVS** (Preferences e dados salvos).
-- Apaga as **credenciais de Wi-Fi** guardadas pelo SDK.
-- Sinaliza pelos LEDs: **trabalhando** = piscam juntos devagar; **sucesso** = varredura sequencial
-  em loop; **falha** = todos acesos fixos.
-
-**Uso:** grave esse sketch, aguarde a sinalização de sucesso e depois **regrave o `AquaSense.ino`**.
-
-> ⚠️ Operação destrutiva: remove dados persistidos e credenciais de rede do ESP32.
+> **Não apaga a NVS.** Para limpar dados persistidos e credenciais de Wi-Fi, use a opção
+> **Erase Flash** da IDE/Arduino CLI ou `esptool.py erase_flash`.
 
 ---
 
@@ -324,8 +311,9 @@ Códigos `rc` são o retorno de `PubSubClient::state()` (traduzidos no Serial po
 ## Estrutura do repositório
 
 ```
-AquaSense.ino                              ← firmware PRINCIPAL (ESP32 / Arduino C++) — protocolo PT v3.0
-BlinkLimpaMemoria.ino                      ← utilitário: sobrescreve firmware com um blink inerte
+AquaSense/
+  AquaSense.ino                            ← firmware PRINCIPAL (ESP32 / Arduino C++) — protocolo PT v3.0
+  AquaSense.md                             ← documentação do firmware
 README.md                                  ← esta documentação
 dashboard-app/                             ← dashboard web oficial (TanStack Start / React + TS)
   src/                                     ← componentes, store, provider MQTT, tópicos
@@ -336,8 +324,8 @@ alexa/                                     ← skill Alexa pt-BR (consulta + com
   skill-package/                           ← manifesto + modelo de interação
   lambda/                                  ← handler Node.js (ask-sdk-core) + ponte MQTT
 ferramentas/
-  ApagarMemoria/
-    ApagarMemoria.ino                      ← utilitário para apagar NVS + credenciais WiFi
+  BlinkLimpaMemoria/
+    BlinkLimpaMemoria.ino                  ← utilitário: sobrescreve firmware com um blink inerte
 wokwi/
   main.py                                  ← versão EXPERIMENTAL em MicroPython (Wokwi)
 ```
