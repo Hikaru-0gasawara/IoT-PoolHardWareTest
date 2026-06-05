@@ -6,4 +6,14 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-export default defineConfig();
+// host "0.0.0.0" (IPv4) — este ambiente não suporta o "::" (IPv6) padrão do
+// wrapper. Fora do sandbox, options.vite tem precedência no merge final.
+export default defineConfig({
+  // Modo SPA: emite um index.html estático servível sem servidor SSR
+  // (necessário para preview neste ambiente). Hidratação 100% no cliente.
+  tanstackStart: { spa: { enabled: true } },
+  vite: {
+    server: { host: "127.0.0.1", port: 4173, strictPort: true },
+    preview: { host: "127.0.0.1", port: 4173, strictPort: true },
+  },
+});

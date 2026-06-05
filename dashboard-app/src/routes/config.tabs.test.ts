@@ -30,11 +30,7 @@ describe("ordem das abas de /config", () => {
   });
 
   it("os rótulos seguem a mesma ordem invertida", () => {
-    expect(CONFIG_TABS.map((t) => t.label)).toEqual([
-      "Controle Avançado",
-      "Integrações",
-      "Sobre",
-    ]);
+    expect(CONFIG_TABS.map((t) => t.label)).toEqual(["Controle Avançado", "Integrações", "Sobre"]);
   });
 
   it("a aba padrão é a primeira da ordem (Controle Avançado)", () => {

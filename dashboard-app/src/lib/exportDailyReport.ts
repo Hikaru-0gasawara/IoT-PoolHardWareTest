@@ -56,7 +56,6 @@ function clockText(t: number): string {
   return new Date(t).toLocaleTimeString("pt-BR");
 }
 
-
 // Desenha um mini gráfico de linha de uma série dentro de uma caixa.
 function drawChart(
   doc: jsPDF,
@@ -149,7 +148,6 @@ export function exportDailyReport() {
   );
   yPos = 52;
 
-
   // ── Cartões de resumo ──────────────────────────────────────
   const cardW = (W - M * 2 - 8) / 2;
   const cardH = 30;
@@ -223,7 +221,10 @@ export function exportDailyReport() {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     ativos.forEach((a) => {
-      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
       const rgb = statusRGB(a.severity);
       const t = THRESHOLDS[a.parametro];
       // bolinha + parâmetro
@@ -232,7 +233,8 @@ export function exportDailyReport() {
       doc.setTextColor(...INK);
       doc.text(t.label, cols.param + 5, yPos);
       // severidade (com ack se houver)
-      const sevTxt = (a.severity === "crit" ? "Crítico" : "Atenção") + (a.ack_em ? " (reconhecido)" : "");
+      const sevTxt =
+        (a.severity === "crit" ? "Crítico" : "Atenção") + (a.ack_em ? " (reconhecido)" : "");
       doc.setTextColor(...rgb);
       doc.text(sevTxt, cols.sev, yPos);
       // duração fora da faixa
@@ -249,7 +251,6 @@ export function exportDailyReport() {
     });
     yPos += 3;
   }
-
 
   // ── Gráficos de histórico ──────────────────────────────────
   yPos += 4;
@@ -293,12 +294,19 @@ export function exportDailyReport() {
     yPos += 8;
   } else {
     s.cloroEvents.slice(0, 16).forEach((e) => {
-      if (yPos > 275) { doc.addPage(); yPos = 20; }
+      if (yPos > 275) {
+        doc.addPage();
+        yPos = 20;
+      }
       const rgb = e.tipo === "entrou_faixa" ? OK : statusRGB(e.severity);
       doc.setTextColor(...rgb);
       doc.text("●", M, yPos + 4);
       doc.setTextColor(...INK);
-      doc.text(`${describeEvent(e)} — ${e.valor.toFixed(1)} ppm · ${relTime(e.t)}`, M + 5, yPos + 4);
+      doc.text(
+        `${describeEvent(e)} — ${e.valor.toFixed(1)} ppm · ${relTime(e.t)}`,
+        M + 5,
+        yPos + 4,
+      );
       yPos += 6.5;
     });
   }
@@ -318,4 +326,3 @@ export function exportDailyReport() {
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
   doc.save(`aquasense-resumo-cloro-alcalinidade_${stamp}.pdf`);
 }
-

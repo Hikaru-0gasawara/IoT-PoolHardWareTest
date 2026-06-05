@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  createGapDetector,
-  pushCycle,
-  resetBaseline,
-  GAP_BUFFER_MAX,
-} from "./cycleGaps";
+import { createGapDetector, pushCycle, resetBaseline, GAP_BUFFER_MAX } from "./cycleGaps";
 
 describe("cycleGaps", () => {
   it("a) sequência consecutiva (#1,#2,#3) → 0 gaps", () => {

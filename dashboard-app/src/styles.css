@@ -1,3 +1,6 @@
+/* Switzer (grotesca neutra, análogo livre do PP Neue Montreal da Off Menu) é
+   carregada via <link> em src/routes/__root.tsx — o Lightning CSS tentaria
+   empacotar um @import remoto como arquivo local e quebraria o build. */
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
 @source "../src";
@@ -59,48 +62,51 @@
   --color-accent-magenta: var(--accent-magenta);
   --color-accent-lime: var(--accent-lime);
 
-  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Registro Off Menu — uma única grotesca neutra para display e corpo,
+     com tracking apertado. Inter Tight como fallback próximo. */
+  --font-display: "Switzer", "Inter Tight", "Inter", ui-sans-serif, system-ui, sans-serif;
 
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Switzer", "Inter Tight", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --shadow-aqua: 0 8px 32px -8px oklch(0.15 0.05 240 / 0.5);
-  --shadow-glow-accent: 0 0 24px oklch(0.75 0.15 220 / 0.4);
+  /* Sombras mínimas, estilo editorial — quase planas. */
+  --shadow-aqua: 0 1px 2px oklch(0 0 0 / 0.06), 0 8px 24px -16px oklch(0 0 0 / 0.18);
+  --shadow-glow-accent: 0 0 24px oklch(0.76 0.16 220 / 0.30);
 }
 
-/* DARK is default for AquaSense */
+/* DARK is default for AquaSense — registro Off Menu: navy frio + ciano */
 :root {
-  --radius: 1rem;
+  --radius: 1.25rem;
 
-  /* Map dark palette to shadcn tokens */
+  /* Map dark palette to shadcn tokens (azul/navy + ciano) */
   --background: oklch(0.18 0.04 245);          /* #0A1628 vibe */
-  --foreground: oklch(0.96 0.015 220);         /* #E8F4F8 */
-  --card: oklch(0.23 0.045 245);               /* #0F2236 */
+  --foreground: oklch(0.96 0.015 220);
+  --card: oklch(0.23 0.045 245);
   --card-foreground: oklch(0.96 0.015 220);
   --popover: oklch(0.23 0.045 245);
   --popover-foreground: oklch(0.96 0.015 220);
-  --primary: oklch(0.76 0.16 220);             /* accent ciano */
+  --primary: oklch(0.76 0.16 220);             /* ciano — único acento */
   --primary-foreground: oklch(0.18 0.04 245);
   --secondary: oklch(0.30 0.05 240);
   --secondary-foreground: oklch(0.96 0.015 220);
   --muted: oklch(0.28 0.04 245);
-  --muted-foreground: oklch(0.72 0.025 240);   /* #94A3B8 */
+  --muted-foreground: oklch(0.72 0.025 240);
   --accent: oklch(0.30 0.05 240);
   --accent-foreground: oklch(0.96 0.015 220);
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.98 0.01 0);
-  --border: oklch(0.34 0.05 240);              /* #1C3A52 */
+  --border: oklch(0.34 0.05 240);              /* bordas finas */
   --input: oklch(0.34 0.05 240);
   --ring: oklch(0.76 0.16 220);
 
-  /* AquaSense semantic */
+  /* AquaSense semantic — navy + ciano */
   --aqua-bg: oklch(0.18 0.04 245);
   --aqua-surface: oklch(0.23 0.045 245);
   --aqua-surface-2: oklch(0.27 0.05 245);
   --aqua-border: oklch(0.34 0.05 240);
-  --aqua-primary: oklch(0.46 0.10 235);        /* #065A82 */
-  --aqua-secondary: oklch(0.55 0.09 220);      /* #1C7293 */
-  --aqua-accent: oklch(0.76 0.16 220);         /* #00B4D8 */
+  --aqua-primary: oklch(0.46 0.10 235);
+  --aqua-secondary: oklch(0.55 0.09 220);
+  --aqua-accent: oklch(0.76 0.16 220);         /* #00B4D8 ciano */
   --aqua-text: oklch(0.96 0.015 220);
   --aqua-text-muted: oklch(0.72 0.025 240);
 
@@ -123,6 +129,7 @@
   --accent-magenta: oklch(0.68 0.25 340);
   --accent-lime: oklch(0.85 0.20 130);
 
+  --glow-accent: 0 0 18px oklch(0.76 0.16 220 / 0.50);
   --glow-cyan: 0 0 18px oklch(0.82 0.15 200 / 0.55);
   --glow-amber: 0 0 18px oklch(0.80 0.16 75 / 0.55);
   --glow-magenta: 0 0 18px oklch(0.68 0.25 340 / 0.55);
@@ -135,14 +142,50 @@
   --chart-5: var(--param-cond);
 }
 
+/* ESCURO PRETO — grafite quase preto + acento verde-menta (paleta da tela de referência) */
+.dark-black {
+  --background: oklch(0.14 0.004 160);
+  --foreground: oklch(0.97 0.004 160);
+  --card: oklch(0.18 0.005 160);
+  --card-foreground: oklch(0.97 0.004 160);
+  --popover: oklch(0.18 0.005 160);
+  --popover-foreground: oklch(0.97 0.004 160);
+  --primary: oklch(0.80 0.15 152);             /* verde-menta */
+  --primary-foreground: oklch(0.14 0.004 160);
+  --secondary: oklch(0.23 0.006 160);
+  --secondary-foreground: oklch(0.97 0.004 160);
+  --muted: oklch(0.21 0.005 160);
+  --muted-foreground: oklch(0.65 0.008 160);
+  --accent: oklch(0.23 0.006 160);
+  --accent-foreground: oklch(0.97 0.004 160);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 0);
+  --border: oklch(0.26 0.007 160);
+  --input: oklch(0.26 0.007 160);
+  --ring: oklch(0.80 0.15 152);
+
+  --aqua-bg: oklch(0.14 0.004 160);
+  --aqua-surface: oklch(0.18 0.005 160);
+  --aqua-surface-2: oklch(0.22 0.006 160);
+  --aqua-border: oklch(0.26 0.007 160);
+  --aqua-primary: oklch(0.55 0.10 152);
+  --aqua-secondary: oklch(0.66 0.10 155);
+  --aqua-accent: oklch(0.80 0.15 152);         /* #4ade80 verde-menta */
+  --aqua-text: oklch(0.97 0.004 160);
+  --aqua-text-muted: oklch(0.65 0.008 160);
+  --flow: oklch(0.66 0.18 250);
+  --glow-accent: 0 0 18px oklch(0.80 0.15 152 / 0.50);
+  --shadow-glow-accent: 0 0 24px oklch(0.80 0.15 152 / 0.30);
+}
+
 .light {
-  --background: oklch(0.98 0.005 220);
+  --background: oklch(0.98 0.005 220);         /* off-white levemente azul */
   --foreground: oklch(0.22 0.04 245);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.04 245);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.04 245);
-  --primary: oklch(0.55 0.14 230);
+  --primary: oklch(0.55 0.14 230);             /* azul mais fechado p/ contraste */
   --primary-foreground: oklch(0.98 0.005 220);
   --secondary: oklch(0.94 0.01 220);
   --secondary-foreground: oklch(0.22 0.04 245);
@@ -164,6 +207,12 @@
   --aqua-text: oklch(0.22 0.04 245);
   --aqua-text-muted: oklch(0.45 0.03 240);
   --flow: oklch(0.58 0.18 250);
+
+  /* Status — versões mais fechadas p/ contraste sobre superfícies claras.
+     O âmbar padrão (L 0.78) "some" no branco; aqui escurece para laranja. */
+  --status-ok: oklch(0.58 0.16 160);
+  --status-warn: oklch(0.62 0.16 65);
+  --status-crit: oklch(0.58 0.22 25);
 }
 
 @layer base {
@@ -265,6 +314,31 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fade-up 0.4s ease-out both; }
+
+/* Scroll-reveal — sections fade + lift as they enter the viewport. <Reveal>
+   adds .is-visible the first time the element intersects. Editorial easing
+   (easeOutQuint), disabled whenever motion is reduced (OS media query or the
+   in-app data-reduce-motion toggle). */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+[data-reduce-motion="true"] .reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
 
 /* Tile interactions — hover glow follows the parameter status color */
 .tile-interactive:hover {

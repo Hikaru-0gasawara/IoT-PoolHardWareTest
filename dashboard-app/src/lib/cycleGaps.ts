@@ -74,9 +74,7 @@ export function pushCycle(
   const nextGaps = [...state.gaps, gap];
   // FIFO: descarta os mais antigos quando estoura o limite.
   const trimmed =
-    nextGaps.length > GAP_BUFFER_MAX
-      ? nextGaps.slice(nextGaps.length - GAP_BUFFER_MAX)
-      : nextGaps;
+    nextGaps.length > GAP_BUFFER_MAX ? nextGaps.slice(nextGaps.length - GAP_BUFFER_MAX) : nextGaps;
 
   return {
     lastSeen: cycle,

@@ -84,6 +84,13 @@ export interface MqttLogEntry {
   payload: string;
 }
 
+// Ids estáveis dos sensores rastreados no diagnóstico (online/offline + falhas).
+export type SensorId = "ph" | "cloro" | "alcalinidade" | "piscina" | "coletor";
+
+// Contadores de falha (leituras com valor sentinela de erro) por sensor,
+// acumulados na sessão. Usado pelos indicadores do painel de Diagnóstico.
+export type SensorFailureCounts = Record<SensorId, number>;
+
 export interface MqttContextValue {
   status: MqttConnectionStatus;
   source: DataSource;
@@ -100,7 +107,15 @@ export interface MqttContextValue {
   providerMountedAt: number;
   // Respostas de dosagem recebidas em alexa/resposta (FIFO, mais recente em [0]).
   dosingResponses: DosingResponse[];
+  // Contadores de falha por sensor (leitura = valor de erro), acumulados na sessão.
+  sensorFailures: SensorFailureCounts;
   // Publica um comando de dosagem manual. Throttle de 1s; rejeita quando
   // desconectado. Gera comando_id automaticamente.
   publishDosingCommand: (parameter: DoseChemical) => Promise<void>;
+  // Publica o modo da BOMBA de aquecimento solar (controle/modo). Throttle de
+  // 1s; rejeita quando desconectado.
+  publishControlMode: (modo: import("@/types/aquasense").PumpMode) => Promise<void>;
+  // Publica o modo da DOSAGEM química (controle/dosagem/modo), independente da
+  // bomba. Throttle de 1s; rejeita quando desconectado.
+  publishDosingMode: (modo: import("@/types/aquasense").PumpMode) => Promise<void>;
 }

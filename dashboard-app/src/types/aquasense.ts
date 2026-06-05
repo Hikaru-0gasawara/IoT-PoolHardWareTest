@@ -6,10 +6,9 @@
 
 export type ParameterKey = "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "temp_coletor";
 
-
 export type StatusLevel = "ok" | "warn" | "crit";
 
-export type PumpMode = "automatico" | "manual";
+export type PumpMode = "automatico" | "manual" | "parado";
 
 export interface SensorPoint {
   t: number; // epoch ms
@@ -20,7 +19,6 @@ export interface SensorPoint {
   temp_coletor: number;
   bomba_ligada: boolean;
 }
-
 
 export interface PumpEvent {
   t: number;
@@ -96,9 +94,13 @@ export interface PoolState {
   temp_coletor: number;
   delta_t: number;
 
-  // bomba
+  // bomba de aquecimento solar — modo controla SÓ o acionamento da bomba
+  // (automático = histerese ΔT no ESP32; manual = operador liga/desliga).
   bomba_ligada: boolean;
   bomba_modo: PumpMode;
+  // dosagem química — modo independente da bomba (automático = sistema dosa
+  // conforme sensores; manual = só dosagens manuais do operador).
+  dosagem_modo: PumpMode;
   setpoint_temp: number;
   ultima_mudanca_bomba_t: number; // epoch ms — para anti-cycling
   bomba_estado_desde_t: number; // epoch ms — quando entrou no estado atual

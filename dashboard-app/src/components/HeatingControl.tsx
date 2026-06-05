@@ -1,20 +1,46 @@
-import { motion } from "framer-motion";
-import { Power, Bot, Cpu, Info } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { animate, MOTION } from "@/lib/motion";
+import { Power, Bot, Ban, Cpu, Info } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
+import { useConnection, usePublishControlMode } from "@/hooks/useAquaSense";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { PumpMode } from "@/types/aquasense";
 
-// Visualização (somente leitura) do controle automático da bomba.
-// O controle real acontece no firmware do ESP32 via histerese ΔT 5°C / 1°C
-// com anti-cycling de 60 s. O dashboard apenas reflete o estado.
+// Controle da BOMBA de aquecimento solar — modo independente da dosagem.
+//   Automático → o ESP32 decide via histerese ΔT 5°C / 1°C (anti-cycling 60s).
+//   Parado     → bomba desativada.
 
 export function HeatingControl() {
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
   const ultimaMudanca = usePoolStore((s) => s.ultima_mudanca_bomba_t);
   const dt = usePoolStore((s) => s.delta_t);
   const log = usePoolStore((s) => s.pumpLog);
+  const modo = usePoolStore((s) => s.bomba_modo);
+  const setMode = usePoolStore((s) => s.setMode);
+  const conn = useConnection();
+  const publishControlMode = usePublishControlMode();
   const now = useNow(1000);
+
+  const brokerConnected = conn.status === "connected";
+  const isParado = modo === "parado";
+
+  const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const showFeedback = (kind: "ok" | "err", text: string) => {
+    setFeedback({ kind, text });
+    window.setTimeout(() => setFeedback(null), 3000);
+  };
+
+  const handleMode = async (m: PumpMode) => {
+    setMode(m);
+    try {
+      await publishControlMode(m);
+      showFeedback("ok", `Modo da bomba enviado: ${m}`);
+    } catch (e) {
+      showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar modo");
+    }
+  };
 
   const elapsed = (now - ultimaMudanca) / 1000;
   const remaining = Math.max(0, 60 - elapsed);
@@ -23,6 +49,18 @@ export function HeatingControl() {
   // ΔT bar position (-5 a +20)
   const dtPos = ((dt + 5) / 25) * 100;
 
+  // Marcador ΔT animado via anime.js (substitui o spring do framer-motion),
+  // mantendo a mesma sensação elástica. Respeita "reduzir movimento".
+  const dtMarkerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!dtMarkerRef.current) return;
+    animate(dtMarkerRef.current, {
+      left: `${dtPos}%`,
+      duration: MOTION.duration.base,
+      ease: MOTION.spring,
+    });
+  }, [dtPos]);
+
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr]">
       {/* Estado da bomba + modo */}
@@ -30,25 +68,89 @@ export function HeatingControl() {
         <div className="flex items-center gap-3 rounded-xl border border-aqua-border bg-aqua-surface-2 p-3 text-xs text-aqua-text-muted">
           <Cpu className="h-4 w-4 shrink-0 text-aqua-accent" />
           <span>
-            A bomba é controlada autonomamente pelo ESP32 a partir das leituras
-            de temperatura. Esta tela apenas exibe o estado em tempo real.
+            {isParado
+              ? "Sistema parado: a bomba está desligada. Selecione Automático para retomar o aquecimento solar."
+              : "Modo automático: o ESP32 decide o acionamento da bomba a partir do ΔT entre coletor e piscina."}
           </span>
         </div>
 
         <div>
-          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Modo de operação</h3>
-          <div className="flex items-center gap-2 rounded-xl border-2 border-aqua-accent bg-aqua-accent/10 p-3">
-            <Bot className="h-5 w-5 text-aqua-accent" />
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-aqua-text">Automático</div>
-              <div className="text-[11px] text-aqua-text-muted">Histerese ΔT 5°C / 1°C · anti-cycling 60s</div>
-            </div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+              Modo da bomba
+            </h3>
             <ControlInfoPopover />
           </div>
+          <div
+            role="radiogroup"
+            aria-label="Modo da bomba de aquecimento"
+            className="flex gap-1 rounded-full border border-aqua-border bg-aqua-bg/60 p-1.5"
+          >
+            {[
+              {
+                key: "automatico" as PumpMode,
+                label: "Automático",
+                icon: <Bot className="h-4 w-4" />,
+              },
+              { key: "parado" as PumpMode, label: "Parado", icon: <Ban className="h-4 w-4" /> },
+            ].map((m) => {
+              const active = modo === m.key;
+              const isDanger = m.key === "parado";
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  disabled={!brokerConnected}
+                  onClick={() => void handleMode(m.key)}
+                  className={cn(
+                    "flex-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent/40",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    active && isDanger
+                      ? "border border-status-warn/50 bg-status-warn/10 text-status-warn"
+                      : active
+                        ? "bg-aqua-accent text-aqua-bg shadow-glow-accent"
+                        : "text-aqua-text-muted hover:text-aqua-text",
+                  )}
+                >
+                  <span aria-hidden>{m.icon}</span>
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-aqua-text-muted">
+            {isParado
+              ? "Bomba pausada — clique em Automático para retomar."
+              : "Histerese ΔT 5°C / 1°C · anti-cycling 60s."}
+          </p>
+          {!brokerConnected && (
+            <p className="mt-1 text-[11px] text-status-warn">
+              Sem conexão MQTT — troca de modo indisponível.
+            </p>
+          )}
         </div>
 
+        {feedback && (
+          <div
+            role="status"
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+              feedback.kind === "ok"
+                ? "border-status-ok/40 bg-status-ok/5 text-status-ok"
+                : "border-status-crit/40 bg-status-crit/5 text-status-crit",
+            )}
+          >
+            <span>{feedback.text}</span>
+          </div>
+        )}
+
         <div>
-          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Bomba</h3>
+          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Bomba
+          </h3>
           <div
             className={cn(
               "relative flex w-full items-center justify-between rounded-xl border-2 p-4",
@@ -67,9 +169,13 @@ export function HeatingControl() {
                 <Power className="h-5 w-5" />
               </div>
               <div className="text-left">
-                <div className="text-base font-semibold">{bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}</div>
+                <div className="text-base font-semibold">
+                  {bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}
+                </div>
                 <div className="text-xs text-aqua-text-muted">
-                  {canChange ? "Pronta para próximo acionamento" : `Anti-cycling: ${Math.ceil(remaining)}s`}
+                  {canChange
+                    ? "Pronta para próximo acionamento"
+                    : `Anti-cycling: ${Math.ceil(remaining)}s`}
                 </div>
               </div>
             </div>
@@ -81,16 +187,26 @@ export function HeatingControl() {
       {/* Histerese + log */}
       <div className="space-y-5 rounded-2xl border border-aqua-border bg-aqua-surface p-5">
         <div>
-          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Histerese ΔT</h3>
+          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Histerese ΔT
+          </h3>
           <div className="relative h-9 overflow-hidden rounded-full border border-aqua-border bg-aqua-bg">
-            <div className="absolute inset-y-0 left-0 bg-status-ok/30" style={{ width: `${(6 / 25) * 100}%` }} />
-            <div className="absolute inset-y-0 bg-status-warn/25" style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }} />
-            <div className="absolute inset-y-0 bg-aqua-accent/30" style={{ left: `${(10 / 25) * 100}%`, right: 0 }} />
-            <motion.div
+            <div
+              className="absolute inset-y-0 left-0 bg-status-ok/30"
+              style={{ width: `${(6 / 25) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 bg-status-warn/25"
+              style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 bg-aqua-accent/30"
+              style={{ left: `${(10 / 25) * 100}%`, right: 0 }}
+            />
+            <div
+              ref={dtMarkerRef}
               className="absolute top-0 h-full w-1 rounded shadow-lg"
-              style={{ backgroundColor: "var(--aqua-text)" }}
-              animate={{ left: `${dtPos}%` }}
-              transition={{ type: "spring", stiffness: 80, damping: 18 }}
+              style={{ backgroundColor: "var(--aqua-text)", left: `${dtPos}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center text-xs font-tabular font-semibold text-aqua-text drop-shadow">
               ΔT = {dt.toFixed(1)}°C
@@ -105,18 +221,28 @@ export function HeatingControl() {
         </div>
 
         <div>
-          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Acionamentos recentes</h3>
+          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Acionamentos recentes
+          </h3>
           <ul className="space-y-1.5 text-xs">
             {log.slice(0, 5).map((e, i) => (
-              <li key={`${e.t}-${i}`} className="flex items-start gap-2 rounded-lg bg-aqua-surface-2 p-2">
+              <li
+                key={`${e.t}-${i}`}
+                className="flex items-start gap-2 rounded-lg bg-aqua-surface-2 p-2"
+              >
                 <span
-                  className={cn("mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                  className={cn(
+                    "mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
                     e.ligada ? "bg-flow" : "bg-aqua-text-muted",
                   )}
                 />
                 <div className="flex-1">
                   <div className="font-tabular text-aqua-text">
-                    {new Date(e.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
+                    {new Date(e.t).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
                   </div>
                   <div className="text-aqua-text-muted">{e.motivo}</div>
                 </div>
@@ -138,8 +264,12 @@ function CountdownRing({ seconds }: { seconds: number }) {
       <svg viewBox="0 0 40 40" className="h-full w-full -rotate-90">
         <circle cx="20" cy="20" r="18" fill="none" stroke="var(--aqua-border)" strokeWidth="3" />
         <circle
-          cx="20" cy="20" r="18" fill="none"
-          stroke="var(--status-warn)" strokeWidth="3"
+          cx="20"
+          cy="20"
+          r="18"
+          fill="none"
+          stroke="var(--status-warn)"
+          strokeWidth="3"
           strokeDasharray="113"
           strokeDashoffset={dash}
           strokeLinecap="round"
@@ -178,11 +308,13 @@ function ControlInfoPopover() {
           <li>Considera apenas ΔT entre piscina e coletor</li>
           <li>Não compensa horário do dia (eficiência solar)</li>
           <li>Não limita por temperatura máxima da piscina</li>
-          <li>Anti-cycling de 60s — em produção real, recomendado 5–10 min para preservar o capacitor</li>
+          <li>
+            Anti-cycling de 60s — em produção real, recomendado 5–10 min para preservar o capacitor
+          </li>
         </ul>
         <p className="text-[11px] leading-relaxed text-aqua-text-muted">
-          Em produto comercial, o algoritmo seria adaptativo (PID com feedback) e
-          consideraria histórico de eficiência por horário do dia.
+          Em produto comercial, o algoritmo seria adaptativo (PID com feedback) e consideraria
+          histórico de eficiência por horário do dia.
         </p>
       </PopoverContent>
     </Popover>

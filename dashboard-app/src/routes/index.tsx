@@ -6,7 +6,10 @@ import { SolarSystemHero } from "@/components/editorial/SolarSystemHero";
 import { WaterQualityCard } from "@/components/editorial/WaterQualityCard";
 import { MqttLog } from "@/components/MqttLog";
 import { exportDailyReport } from "@/lib/exportDailyReport";
-import { ChlorineEventLog } from "@/components/ChlorineEventLog";
+import { DosingModePanel } from "@/components/editorial/DosingModePanel";
+import { HeatingModeWidget } from "@/components/editorial/HeatingModeWidget";
+import { PageHeading } from "@/components/editorial/PageHeading";
+import { Reveal } from "@/components/Reveal";
 import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
@@ -16,9 +19,17 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "AquaSense IoT — Monitor de piscina em tempo real" },
-      { name: "description", content: "Dashboard interativo para monitoramento e controle de piscina aquecida via coletor solar. Sensores ESP32 + MQTT." },
+      {
+        name: "description",
+        content:
+          "Dashboard interativo para monitoramento e controle de piscina aquecida via coletor solar. Sensores ESP32 + MQTT.",
+      },
       { property: "og:title", content: "AquaSense IoT — Monitor de piscina" },
-      { property: "og:description", content: "Telemetria em tempo real: pH, ORP, condutividade, temperatura e controle automático da bomba." },
+      {
+        property: "og:description",
+        content:
+          "Telemetria em tempo real: pH, ORP, condutividade, temperatura e controle automático da bomba.",
+      },
     ],
   }),
   component: HomePage,
@@ -74,94 +85,110 @@ function HomePage() {
   const alcalinidadeTrend = useTrend("alcalinidade");
   const tempTrend = useTrend("temp_piscina");
 
-  const heroEstado: "circulando" | "parada" | "emergencia" =
-    bombaOn ? "circulando" : "parada";
+  const heroEstado: "circulando" | "parada" | "emergencia" = bombaOn ? "circulando" : "parada";
 
   return (
     <AppShell>
       <div className="space-y-8 fade-up">
-        <header className="flex items-end justify-between">
-          <div>
-            <h1 className="font-display text-4xl font-semibold tracking-tight text-aqua-text sm:text-5xl">
-              Visão geral
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-aqua-text-muted">
-              Cada ciclo do ESP32 chega via MQTT a cada 5 segundos. Leituras refletem o estado
-              real da piscina — sensores, dosadoras e bomba operam de forma autônoma.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => exportDailyReport()}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
-          >
-            <FileDown className="h-4 w-4" aria-hidden />
-            Exportar PDF
-          </button>
-        </header>
-
-        <SolarSystemHero
-          tempPiscina={tempPool}
-          tempColetor={tempSolar}
-          deltaT={deltaT}
-          bombaOn={bombaOn}
-          estado={heroEstado}
+        <PageHeading
+          eyebrow="Tempo real · MQTT"
+          title="Visão geral"
+          subtitle="Cada ciclo do ESP32 chega via MQTT a cada 5 segundos. Leituras refletem o estado real da piscina — sensores, dosadoras e bomba operam de forma autônoma."
+          action={
+            <button
+              type="button"
+              onClick={() => exportDailyReport()}
+              className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
+            >
+              <FileDown
+                className="h-4 w-4 transition-transform group-hover:translate-y-0.5"
+                aria-hidden
+              />
+              Exportar PDF
+            </button>
+          }
         />
 
-        <section aria-labelledby="qualidade-heading" className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 id="qualidade-heading" className="font-display text-xl font-semibold tracking-tight text-aqua-text">
-              Qualidade da água
-            </h2>
-            <p className="text-xs text-aqua-text-muted">Faixas do firmware v2.3</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <WaterQualityCard
-              paramKey="ph"
-              value={ph}
-              diff={phDiff}
-              trend={phTrend}
-              sensorError={isSensorError(ph)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="cloro"
-              value={cloro}
-              diff={cloroDiff}
-              trend={cloroTrend}
-              sensorError={isSensorError(cloro)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="alcalinidade"
-              value={alcalinidade}
-              diff={alcalinidadeDiff}
-              trend={alcalinidadeTrend}
-              sensorError={isSensorError(alcalinidade)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="temp_piscina"
-              value={tempPool}
-              diff={tempDiff}
-              trend={tempTrend}
-              sensorError={isSensorError(tempPool)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
+        <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <SolarSystemHero
+              tempPiscina={tempPool}
+              tempColetor={tempSolar}
+              deltaT={deltaT}
+              bombaOn={bombaOn}
+              estado={heroEstado}
+              dataEmpty={loading}
             />
           </div>
-        </section>
+          <div className="lg:col-span-1 flex flex-col gap-4">
+            <HeatingModeWidget />
+            <DosingModePanel show="mode" />
+          </div>
+        </div>
 
-        <ChlorineEventLog />
+        <Reveal>
+          <section aria-labelledby="qualidade-heading" className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <h2
+                id="qualidade-heading"
+                className="font-display text-xl font-semibold tracking-tight text-aqua-text"
+              >
+                Qualidade da água
+              </h2>
+              <p className="text-xs text-aqua-text-muted">Faixas do firmware v2.3</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <WaterQualityCard
+                paramKey="ph"
+                value={ph}
+                diff={phDiff}
+                trend={phTrend}
+                sensorError={isSensorError(ph)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="cloro"
+                value={cloro}
+                diff={cloroDiff}
+                trend={cloroTrend}
+                sensorError={isSensorError(cloro)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="alcalinidade"
+                value={alcalinidade}
+                diff={alcalinidadeDiff}
+                trend={alcalinidadeTrend}
+                sensorError={isSensorError(alcalinidade)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="temp_piscina"
+                value={tempPool}
+                diff={tempDiff}
+                trend={tempTrend}
+                sensorError={isSensorError(tempPool)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+            </div>
+          </section>
+        </Reveal>
 
-        <MqttLog />
+        <Reveal delay={60}>
+          <DosingModePanel show="dose" />
+        </Reveal>
+
+        <Reveal delay={120}>
+          <MqttLog />
+        </Reveal>
       </div>
     </AppShell>
   );

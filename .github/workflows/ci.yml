@@ -1,0 +1,41 @@
+name: CI
+
+# Falha o build em qualquer erro de compilação ou de import de CSS
+# (ex.: "@import rules must precede all rules" / linha antiga referenciada),
+# evitando que regressões cheguem ao preview/produção.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Sem --frozen-lockfile: o bun.lockb é secundário (o repo mantem o
+      # package-lock.json do npm). Resolve a partir do package.json.
+      - name: Install dependencies
+        run: bun install
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Unit & integration tests
+        run: bun run test
+
+      # O build compila o CSS com o Lightning CSS/Tailwind v4. Qualquer erro de
+      # @import fora de ordem ou de compilação faz este passo (e o job) falhar.
+      - name: Production build (fails on CSS/compile errors)
+        run: bun run build

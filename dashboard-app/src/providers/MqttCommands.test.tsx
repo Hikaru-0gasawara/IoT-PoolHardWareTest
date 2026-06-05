@@ -31,7 +31,9 @@ import { MqttProvider, useMqttCommands, useMqtt } from "./MqttProvider";
 const wrapper = ({ children }: { children: ReactNode }) => <MqttProvider>{children}</MqttProvider>;
 
 function simulateConnect() {
-  act(() => { handlers["connect"]?.forEach((fn) => fn()); });
+  act(() => {
+    handlers["connect"]?.forEach((fn) => fn());
+  });
 }
 
 beforeEach(() => {
@@ -41,11 +43,15 @@ beforeEach(() => {
 
 describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
   it('publishDosingCommand("cloro") publica em aquasense-ibmec-pt/dosagem/comando', async () => {
-    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), { wrapper });
+    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), {
+      wrapper,
+    });
     simulateConnect();
     await waitFor(() => expect(result.current.state.status).toBe("connected"));
 
-    await act(async () => { await result.current.cmds.publishDosingCommand("cloro"); });
+    await act(async () => {
+      await result.current.cmds.publishDosingCommand("cloro");
+    });
 
     expect(publishMock).toHaveBeenCalledTimes(1);
     const [topic, payload, opts] = publishMock.mock.calls[0];
@@ -58,12 +64,18 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
   });
 
   it("publishDosingCommand gera um comando_id único por chamada", async () => {
-    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), { wrapper });
+    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), {
+      wrapper,
+    });
     simulateConnect();
     await waitFor(() => expect(result.current.state.status).toBe("connected"));
 
-    await act(async () => { await result.current.cmds.publishDosingCommand("cloro"); });
-    await act(async () => { await result.current.cmds.publishDosingCommand("acido"); });
+    await act(async () => {
+      await result.current.cmds.publishDosingCommand("cloro");
+    });
+    await act(async () => {
+      await result.current.cmds.publishDosingCommand("acido");
+    });
 
     expect(publishMock).toHaveBeenCalledTimes(2);
     const id1 = JSON.parse(publishMock.mock.calls[0][1] as string).comando_id;
@@ -73,16 +85,22 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
   });
 
   it("aceita os 3 produtos (cloro|acido|base)", async () => {
-    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), { wrapper });
+    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), {
+      wrapper,
+    });
     simulateConnect();
     await waitFor(() => expect(result.current.state.status).toBe("connected"));
 
-    await act(async () => { await result.current.cmds.publishDosingCommand("base"); });
+    await act(async () => {
+      await result.current.cmds.publishDosingCommand("base");
+    });
     expect(JSON.parse(publishMock.mock.calls[0][1] as string).parametro).toBe("base");
   });
 
   it("throttle de 1s: 2 doses idênticas resultam em UM publish", async () => {
-    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), { wrapper });
+    const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), {
+      wrapper,
+    });
     simulateConnect();
     await waitFor(() => expect(result.current.state.status).toBe("connected"));
 
@@ -96,7 +114,9 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
 
   it("rejeita Promise quando MQTT desconectado", async () => {
     const { result } = renderHook(() => useMqttCommands(), { wrapper });
-    await expect(result.current.publishDosingCommand("cloro")).rejects.toThrow(/MQTT desconectado/i);
+    await expect(result.current.publishDosingCommand("cloro")).rejects.toThrow(
+      /MQTT desconectado/i,
+    );
     expect(publishMock).not.toHaveBeenCalled();
   });
 });

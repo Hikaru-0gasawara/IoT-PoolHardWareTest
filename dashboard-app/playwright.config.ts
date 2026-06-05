@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Configuração E2E do AppShell — valida visualmente a engrenagem (/config)
- * e o menu de Configurações nas larguras de fronteira (320–1440px).
+ * Configuração E2E do AppShell — valida visualmente a navegação e o
+ * realce de estado ativo nas larguras de fronteira (320–1440px).
  *
  * Captura automática em falha:
  *   screenshot: "only-on-failure" — PNG salvo em test-results/ ao falhar.
@@ -29,9 +29,7 @@ export default defineConfig({
     // Grava vídeo do teste; descarta se passar (retém só em falha).
     video: "retain-on-failure",
   },
-  projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: `npm run preview -- --port ${PORT} --strictPort`,
     url: BASE_URL,

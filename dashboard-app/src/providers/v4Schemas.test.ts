@@ -210,15 +210,15 @@ describe("DosingEventSchema (aquasense-ibmec-pt/dosagem/evento)", () => {
   });
 
   it("rejeita evento inválido", () => {
-    expect(
-      DosingEventSchema.safeParse({ parametro: "cloro", evento: "sucesso" }).success,
-    ).toBe(false);
+    expect(DosingEventSchema.safeParse({ parametro: "cloro", evento: "sucesso" }).success).toBe(
+      false,
+    );
   });
 
   it("rejeita parametro fora dos 3 produtos", () => {
-    expect(
-      DosingEventSchema.safeParse({ parametro: "alcalino", evento: "iniciada" }).success,
-    ).toBe(false);
+    expect(DosingEventSchema.safeParse({ parametro: "alcalino", evento: "iniciada" }).success).toBe(
+      false,
+    );
   });
 
   it("rejeita quando falta o evento", () => {
@@ -269,8 +269,8 @@ describe("DosingCommandSchema (aquasense-ibmec-pt/dosagem/comando)", () => {
   });
 
   it("rejeita comando_id ausente", () => {
-    expect(
-      DosingCommandSchema.safeParse({ parametro: "cloro", origem: "manual" }).success,
-    ).toBe(false);
+    expect(DosingCommandSchema.safeParse({ parametro: "cloro", origem: "manual" }).success).toBe(
+      false,
+    );
   });
 });

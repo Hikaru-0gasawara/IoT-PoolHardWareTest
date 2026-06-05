@@ -1,20 +1,39 @@
-import { Moon, Sun } from "lucide-react";
+import { Sun, Moon, MoonStar } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
+import { cn } from "@/lib/utils";
 
-// Botão único do header. Próxima ação no label (não o estado atual) —
-// "Mudar para light" lê melhor que "Tema dark ativo".
+const OPTIONS = [
+  { key: "dark" as const, icon: Moon, label: "Escuro azul" },
+  { key: "dark-black" as const, icon: MoonStar, label: "Escuro verde" },
+  { key: "light" as const, icon: Sun, label: "Claro" },
+];
+
 export function ThemeToggle() {
-  const { theme, toggle } = useTheme();
-  const next = theme === "dark" ? "claro" : "escuro";
+  const { theme, setTheme } = useTheme();
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label={`Mudar para tema ${next}`}
-      title={`Mudar para tema ${next}`}
-      className="rounded-lg border border-aqua-border bg-aqua-surface p-2 text-aqua-text-muted transition-colors hover:text-aqua-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
+    <div
+      role="group"
+      aria-label="Tema"
+      className="flex rounded-lg border border-aqua-border bg-aqua-bg/60 p-0.5"
     >
-      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-    </button>
+      {OPTIONS.map(({ key, icon: Icon, label }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setTheme(key)}
+          aria-label={label}
+          title={label}
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent",
+            theme === key
+              ? "bg-aqua-surface text-aqua-text shadow-sm"
+              : "text-aqua-text-muted hover:text-aqua-text",
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </button>
+      ))}
+    </div>
   );
 }

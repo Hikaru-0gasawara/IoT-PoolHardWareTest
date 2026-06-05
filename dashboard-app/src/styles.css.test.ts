@@ -53,10 +53,7 @@ describe("src/styles.css", () => {
   it("compila sem erros no Lightning CSS (mesmo motor do build)", () => {
     // Substitui imports de pacotes (resolvidos pelo Tailwind/Vite, não pelo
     // Lightning CSS isolado) por placeholders, preservando a posição/ordem real.
-    const compilable = source.replace(
-      /@import\s+(["'][^"']+["'][^;]*);/g,
-      "@layer __pkg;",
-    );
+    const compilable = source.replace(/@import\s+(["'][^"']+["'][^;]*);/g, "@layer __pkg;");
 
     expect(() =>
       transform({

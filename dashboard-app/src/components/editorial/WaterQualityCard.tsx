@@ -1,6 +1,7 @@
 import { AlertOctagon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { THRESHOLDS, statusFor, statusColor } from "@/lib/thresholds";
 import type { ParameterKey } from "@/types/aquasense";
+import { AnimatedNumber } from "@/components/editorial/AnimatedNumber";
 
 // Card editorial de qualidade da água — número grande tipo display, slider
 // posicional dentro da faixa, drift vs 1h e linha descritiva curta.
@@ -42,7 +43,11 @@ function TrendIndicator({ series, decimals }: { series: number[]; decimals: numb
   const eps = span * 0.04;
   const dir: "up" | "down" | "flat" = delta > eps ? "up" : delta < -eps ? "down" : "flat";
   const color =
-    dir === "up" ? "var(--status-warn)" : dir === "down" ? "var(--aqua-accent)" : "var(--aqua-text-muted)";
+    dir === "up"
+      ? "var(--status-warn)"
+      : dir === "down"
+        ? "var(--aqua-accent)"
+        : "var(--aqua-text-muted)";
   const Arrow = dir === "up" ? TrendingUp : dir === "down" ? TrendingDown : Minus;
   const dirLabel = dir === "up" ? "subindo" : dir === "down" ? "caindo" : "estável";
 
@@ -95,24 +100,38 @@ const DRIFT_COPY: Record<ParameterKey, { up: string; down: string; flat: string 
   },
 };
 
-
-export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, estopActive, loading, trend }: Props) {
+export function WaterQualityCard({
+  paramKey,
+  value,
+  diff,
+  sensorError,
+  dosing,
+  estopActive,
+  loading,
+  trend,
+}: Props) {
   const t = THRESHOLDS[paramKey];
   const status = sensorError ? "crit" : statusFor(paramKey, value);
   const sColor = statusColor(status);
-  const decimals = paramKey === "ph" ? 2 : paramKey === "cloro" ? 1 : paramKey === "alcalinidade" ? 0 : 1;
+  const decimals =
+    paramKey === "ph" ? 2 : paramKey === "cloro" ? 1 : paramKey === "alcalinidade" ? 0 : 1;
   const pos = Math.max(2, Math.min(98, ((value - t.rangeMin) / (t.rangeMax - t.rangeMin)) * 100));
 
   const drift = DRIFT_COPY[paramKey];
-  const driftCopy =
-    sensorError ? "Aguardando leitura válida do sensor."
-    : Math.abs(diff) < (t.idealMax - t.idealMin) * 0.05 ? drift.flat
-    : diff > 0 ? drift.up
-    : drift.down;
+  const driftCopy = sensorError
+    ? "Aguardando leitura válida do sensor."
+    : Math.abs(diff) < (t.idealMax - t.idealMin) * 0.05
+      ? drift.flat
+      : diff > 0
+        ? drift.up
+        : drift.down;
 
   if (loading) {
     return (
-      <article className="rounded-2xl border border-aqua-border bg-aqua-surface p-5">
+      <article
+        data-tile
+        className="flex min-h-[13.5rem] flex-col rounded-3xl border border-aqua-border bg-aqua-surface p-6"
+      >
         <div className="text-label">{t.label}</div>
         <div className="text-display-large mt-2 text-aqua-text-muted opacity-60">—</div>
         <p className="mt-3 text-xs text-aqua-text-muted">Aguardando primeiro ciclo do ESP32…</p>
@@ -120,11 +139,14 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
     );
   }
 
+  const statusChip = status === "ok" ? "Ideal" : status === "warn" ? "Atenção" : "Crítico";
+
   return (
     <article
+      data-tile
       tabIndex={0}
       className={[
-        "group tile-interactive rounded-2xl border bg-aqua-surface p-5 shadow-sm cursor-default",
+        "group tile-interactive flex min-h-[13.5rem] flex-col rounded-3xl border bg-aqua-surface p-6 shadow-sm cursor-default",
         "transition-all duration-200 ease-out",
         "hover:-translate-y-0.5 hover:shadow-lg",
         "active:translate-y-0 active:shadow-sm active:scale-[0.99]",
@@ -140,7 +162,9 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
       aria-label={`${t.label}: ${sensorError ? "sensor com erro" : value.toFixed(decimals) + (t.unit ? " " + t.unit : "")}`}
     >
       <header className="flex items-center justify-between">
-        <div className="text-label" style={{ color: sColor }}>{t.label}</div>
+        <div className="text-label" style={{ color: sColor }}>
+          {t.label}
+        </div>
         {dosing && !estopActive && (
           <span className="inline-flex items-center gap-1 rounded-full border border-aqua-accent/40 bg-aqua-accent/10 px-2 py-0.5 text-[10px] font-medium text-aqua-accent">
             ● dosando
@@ -149,6 +173,17 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
         {estopActive && (
           <span className="inline-flex items-center gap-1 rounded-full border border-status-crit/40 bg-status-crit/10 px-2 py-0.5 text-[10px] font-medium text-status-crit">
             travado
+          </span>
+        )}
+        {!dosing && !estopActive && !sensorError && (
+          <span
+            className="rounded-md px-2 py-0.5 text-[10px] font-bold"
+            style={{
+              backgroundColor: `color-mix(in oklab, ${sColor} 12%, transparent)`,
+              color: sColor,
+            }}
+          >
+            {statusChip}
           </span>
         )}
       </header>
@@ -161,7 +196,11 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
         ) : (
           <>
             <span className="flex items-baseline gap-1.5">
-              <span className="text-display-large text-aqua-text">{value.toFixed(decimals)}</span>
+              <AnimatedNumber
+                value={value}
+                decimals={decimals}
+                className="text-display-large text-aqua-text"
+              />
               {t.unit && <span className="text-sm text-aqua-text-muted">{t.unit}</span>}
             </span>
             {!estopActive && trend && <TrendIndicator series={trend} decimals={decimals} />}
@@ -188,7 +227,9 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
           </div>
           <div className="flex justify-between text-[10px] font-tabular text-aqua-text-muted/70">
             <span>{t.rangeMin}</span>
-            <span>{t.idealMin}–{t.idealMax} ideal</span>
+            <span>
+              {t.idealMin}–{t.idealMax} ideal
+            </span>
             <span>{t.rangeMax}</span>
           </div>
         </div>
@@ -197,7 +238,8 @@ export function WaterQualityCard({ paramKey, value, diff, sensorError, dosing, e
       <p className="mt-3 text-xs leading-relaxed text-aqua-text-muted">
         {!sensorError && !estopActive && (
           <span className="mr-1.5 font-tabular text-aqua-text">
-            Δ {diff >= 0 ? "+" : ""}{diff.toFixed(decimals)}
+            Δ {diff >= 0 ? "+" : ""}
+            {diff.toFixed(decimals)}
             <span className="text-aqua-text-muted/70"> /1h</span>
           </span>
         )}

@@ -6,9 +6,19 @@ import { SIM } from "@/lib/constants";
 
 // Padrão diurno do coletor solar (interpolação por hora)
 const SOLAR_CURVE: Array<[number, number]> = [
-  [0, 19], [3, 18], [6, 20], [9, 30], [12, 55],
-  [13, 65], [15, 58], [16, 50], [18, 38], [19, 32],
-  [21, 26], [22, 22], [24, 19],
+  [0, 19],
+  [3, 18],
+  [6, 20],
+  [9, 30],
+  [12, 55],
+  [13, 65],
+  [15, 58],
+  [16, 50],
+  [18, 38],
+  [19, 32],
+  [21, 26],
+  [22, 22],
+  [24, 19],
 ];
 
 export function solarBaseTempAt(date: Date): number {
@@ -113,7 +123,11 @@ export function nextAlcalinidade(prev: number): number {
 }
 
 // Próxima temperatura do coletor com nuvens ocasionais
-export function nextSolarTemp(prev: number, date: Date, cloudTicksLeft: number): { value: number; cloudLeft: number } {
+export function nextSolarTemp(
+  prev: number,
+  date: Date,
+  cloudTicksLeft: number,
+): { value: number; cloudLeft: number } {
   const base = solarBaseTempAt(date);
   // Aproxima do alvo com inércia leve
   let target = base + noise(0.5);
@@ -129,18 +143,27 @@ export function nextSolarTemp(prev: number, date: Date, cloudTicksLeft: number):
 }
 
 // Lógica de histerese ΔT 5/1 com anti-cycling de 60s
+import type { PumpMode } from "@/types/aquasense";
+
 export interface PumpDecisionInput {
   bombaOn: boolean;
   deltaT: number;
-  modo: "automatico" | "manual";
+  modo: PumpMode;
   agora: number;
   ultimaMudanca: number;
 }
 
-export function decidePump(input: PumpDecisionInput): { newState: boolean; reason: string; canChange: boolean } {
+export function decidePump(input: PumpDecisionInput): {
+  newState: boolean;
+  reason: string;
+  canChange: boolean;
+} {
   const elapsed = (input.agora - input.ultimaMudanca) / 1000;
   const canChange = elapsed >= SIM.ANTI_CYCLING_S;
 
+  if (input.modo === "parado") {
+    return { newState: false, reason: "Sistema parado — bomba desativada", canChange };
+  }
   if (input.modo === "manual") {
     return { newState: input.bombaOn, reason: "Modo manual", canChange };
   }
@@ -158,7 +181,11 @@ export function decidePump(input: PumpDecisionInput): { newState: boolean; reaso
   }
 
   if (target !== input.bombaOn && !canChange) {
-    return { newState: input.bombaOn, reason: `Anti-cycling (${(SIM.ANTI_CYCLING_S - elapsed).toFixed(0)}s)`, canChange: false };
+    return {
+      newState: input.bombaOn,
+      reason: `Anti-cycling (${(SIM.ANTI_CYCLING_S - elapsed).toFixed(0)}s)`,
+      canChange: false,
+    };
   }
 
   return { newState: target, reason, canChange };
@@ -185,8 +212,13 @@ export function seedHistory(now: Date): SensorPoint[] {
     solar = clamp(solar, 14, 72);
     const dt = solar - pool;
     // histerese simplificada para o seed
-    if (dt >= 5 && t - lastChange > 60_000 && !bomba) { bomba = true; lastChange = t; }
-    else if (dt <= 1 && t - lastChange > 60_000 && bomba) { bomba = false; lastChange = t; }
+    if (dt >= 5 && t - lastChange > 60_000 && !bomba) {
+      bomba = true;
+      lastChange = t;
+    } else if (dt <= 1 && t - lastChange > 60_000 && bomba) {
+      bomba = false;
+      lastChange = t;
+    }
     pool = nextPoolTemp(pool, bomba, dt, d.getHours());
     ph = nextPh(ph);
     cloro = nextCloro(cloro);

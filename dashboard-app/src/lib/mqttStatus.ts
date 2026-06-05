@@ -110,10 +110,14 @@ export function describeMqttStatus(
 
 export function toneToColor(tone: MqttStatusTone): string {
   switch (tone) {
-    case "ok": return "var(--status-ok)";
-    case "warn": return "var(--status-warn)";
-    case "crit": return "var(--status-crit)";
+    case "ok":
+      return "var(--status-ok)";
+    case "warn":
+      return "var(--status-warn)";
+    case "crit":
+      return "var(--status-crit)";
     case "neutral":
-    default: return "var(--aqua-text-muted)";
+    default:
+      return "var(--aqua-text-muted)";
   }
 }

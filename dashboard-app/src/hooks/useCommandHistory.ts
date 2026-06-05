@@ -59,7 +59,6 @@ export function updateEntry(
 export function useCommandHistory() {
   const [history, setHistory] = useState<CommandHistoryEntry[]>([]);
 
-
   const addDoseCommand = useCallback((parameter: DoseChemical): string => {
     const id = genId();
     setHistory((h) =>

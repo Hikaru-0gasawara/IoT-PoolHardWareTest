@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, useCallback, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 // Hook genérico de estado persistente em localStorage.
 //
