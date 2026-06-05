@@ -4,12 +4,12 @@ import { isMotionReduced } from "@/hooks/useReducedMotion";
 
 const SS_KEY = "aquasense.intro-seen";
 
-// Active Theory-inspired loading screen:
-// 1. Dark empty stage with HUD corner marks
-// 2. Progress bar (1px) fills left→right over 1 second with count-up %
-// 3. Title reveals via horizontal wipe overlay (300ms)
-// 4. Sub-label + version info fade in
-// 5. Hold → opacity fade out
+// Active Theory-inspired loading screen.
+// Module-level flag prevents React Strict Mode's double-effect from firing
+// the "should we show?" logic twice. The flag is reset on every page load
+// (module reload), but persists within a single React tree lifecycle so that
+// the second Strict Mode invocation is a no-op.
+let introDecided = false;
 
 export function IntroScreen() {
   const [done, setDone] = useState(true);
@@ -22,6 +22,8 @@ export function IntroScreen() {
   const cornersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (introDecided) return;
+    introDecided = true;
     let seen = true;
     try { seen = sessionStorage.getItem(SS_KEY) === "1"; } catch { seen = false; }
     if (seen) { setDone(true); return; }
@@ -35,19 +37,20 @@ export function IntroScreen() {
     const clear: (() => void)[] = [];
 
     if (reduced) {
+      // Reduced-motion: show the fully-composed screen for 1.5 s so it's
+      // actually visible, then dismiss without animation.
       if (counterRef.current) counterRef.current.textContent = "100%";
       if (barFillRef.current) barFillRef.current.style.transform = "scaleX(1)";
       if (wipeRef.current) wipeRef.current.style.transform = "scaleX(0)";
       if (subRef.current) subRef.current.style.opacity = "1";
       if (infoRef.current) infoRef.current.style.opacity = "1";
       if (cornersRef.current) cornersRef.current.style.opacity = "1";
-      const t = window.setTimeout(() => setDone(true), 400);
+      const t = window.setTimeout(() => setDone(true), 1500);
       return () => window.clearTimeout(t);
     }
 
     const FILL_MS = 1100;
 
-    // Corner marks fade in immediately
     if (cornersRef.current) {
       animate(cornersRef.current, {
         opacity: [0, 1],
@@ -56,7 +59,6 @@ export function IntroScreen() {
       });
     }
 
-    // Progress bar fills left → right
     if (barFillRef.current) {
       animate(barFillRef.current, {
         scaleX: [0, 1],
@@ -65,7 +67,6 @@ export function IntroScreen() {
       });
     }
 
-    // Count-up 0 → 100 via rAF (mirrors bar)
     const t0 = performance.now();
     let raf: number;
     const countUp = (now: number) => {
@@ -76,7 +77,6 @@ export function IntroScreen() {
     raf = requestAnimationFrame(countUp);
     clear.push(() => cancelAnimationFrame(raf));
 
-    // Title wipe: overlay scales from 1→0, origin right, reveals left→right
     if (wipeRef.current) {
       animate(wipeRef.current, {
         scaleX: [1, 0],
@@ -86,7 +86,6 @@ export function IntroScreen() {
       });
     }
 
-    // Subtitle
     if (subRef.current) {
       animate(subRef.current, {
         opacity: [0, 1],
@@ -97,7 +96,6 @@ export function IntroScreen() {
       });
     }
 
-    // Version info
     if (infoRef.current) {
       animate(infoRef.current, {
         opacity: [0, 1],
@@ -107,7 +105,6 @@ export function IntroScreen() {
       });
     }
 
-    // Hold then fade out
     const hold = FILL_MS + 1600;
     const exitId = window.setTimeout(() => {
       if (!rootRef.current) { setDone(true); return; }
@@ -133,7 +130,6 @@ export function IntroScreen() {
       role="presentation"
       aria-hidden
     >
-      {/* HUD corner marks */}
       <div ref={cornersRef} aria-hidden style={{ opacity: 0 }}>
         <Corner pos="tl" />
         <Corner pos="tr" />
@@ -141,15 +137,11 @@ export function IntroScreen() {
         <Corner pos="br" />
       </div>
 
-      {/* Center content */}
       <div className="relative w-full max-w-lg px-10">
-
-        {/* Title with horizontal wipe reveal */}
         <div className="relative overflow-hidden">
           <h1 className="font-display text-[3.5rem] font-semibold tracking-tight text-aqua-text sm:text-[5rem] leading-none">
             AquaSense
           </h1>
-          {/* Wipe overlay — same color as bg, collapses right→left, revealing text */}
           <div
             ref={wipeRef}
             aria-hidden
@@ -161,7 +153,6 @@ export function IntroScreen() {
           />
         </div>
 
-        {/* Sub-label */}
         <p
           ref={subRef}
           className="mt-2 text-[11px] uppercase tracking-[0.22em] text-aqua-text-muted"
@@ -170,9 +161,7 @@ export function IntroScreen() {
           IoT · Pool Monitor
         </p>
 
-        {/* Progress line + counter */}
         <div className="mt-10">
-          {/* Bar track */}
           <div className="relative h-px w-full" style={{ backgroundColor: "var(--aqua-border)" }}>
             <div
               ref={barFillRef}
@@ -186,7 +175,6 @@ export function IntroScreen() {
             />
           </div>
 
-          {/* Counter + meta */}
           <div className="mt-2 flex items-center justify-between">
             <span
               ref={counterRef}
@@ -212,7 +200,6 @@ export function IntroScreen() {
   );
 }
 
-// Minimal L-shaped corner marks
 function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br" }) {
   const SIZE = 16;
   const style: React.CSSProperties = {
