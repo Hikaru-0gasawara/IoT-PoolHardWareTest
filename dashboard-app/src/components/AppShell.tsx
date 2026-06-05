@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Droplets, RefreshCw, Settings, TriangleAlert } from "lucide-react";
+import { Droplets, RefreshCw, TriangleAlert } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NavItem } from "@/components/NavItem";
@@ -172,25 +172,6 @@ export function Header() {
           </nav>
 
           <ThemeToggle />
-
-          {/* Engrenagem — sempre visível (mobile + desktop). Em mobile cumpre
-              papel de acesso a /config (sem nav lateral); em desktop reforça
-              affordance e dá feedback de rota ativa. */}
-          <Link
-            to="/config"
-            aria-label="Abrir configurações"
-            title="Configurações"
-            data-testid="gear-config"
-            data-active={location.pathname.startsWith("/config") ? "true" : "false"}
-            className={cn(
-              "ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors lg:hidden",
-              location.pathname.startsWith("/config")
-                ? "border-aqua-accent/40 bg-aqua-accent/10 text-aqua-accent"
-                : "border-aqua-border bg-aqua-surface text-aqua-text-muted hover:text-aqua-text",
-            )}
-          >
-            <Settings className="h-5 w-5 lg:h-4 lg:w-4" />
-          </Link>
         </div>
       </div>
 
