@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const OPTIONS = [
   { key: "dark"       as const, icon: Moon,     label: "Escuro azul"  },
-  { key: "dark-black" as const, icon: MoonStar,  label: "Escuro preto" },
+  { key: "dark-black" as const, icon: MoonStar,  label: "Escuro verde" },
   { key: "light"      as const, icon: Sun,       label: "Claro"        },
 ];
 

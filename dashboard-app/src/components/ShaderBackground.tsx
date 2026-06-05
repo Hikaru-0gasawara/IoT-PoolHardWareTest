@@ -89,9 +89,9 @@ const PALETTE = {
     accent: [0.0, 0.71, 0.85] as const,
   },
   "dark-black": {
-    bg: [0.03, 0.04, 0.07] as const,
-    mid: [0.07, 0.09, 0.14] as const,
-    accent: [0.0, 0.71, 0.85] as const,
+    bg: [0.08, 0.09, 0.08] as const,     /* grafite quase preto, traço verde */
+    mid: [0.13, 0.15, 0.13] as const,
+    accent: [0.42, 0.82, 0.60] as const, /* verde-menta */
   },
   light: {
     bg: [0.95, 0.965, 0.985] as const,
