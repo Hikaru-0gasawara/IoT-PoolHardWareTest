@@ -194,6 +194,7 @@ function visibleAlerts(alerts: AggregatedAlert[]): AggregatedAlert[] {
 interface PersistedSettings {
   setpoint_temp: number;
   bomba_modo: PumpMode;
+  dosagem_modo: PumpMode;
   ackedAlerts: string[];
   theme: "dark" | "light";
 }
@@ -218,6 +219,7 @@ interface Store extends PoolState {
   // ações
   setSetpoint: (v: number) => void;
   setMode: (m: PumpMode) => void;
+  setDosingMode: (m: PumpMode) => void;
   togglePumpManual: () => void;
   acknowledgeAlert: (id: string) => void;
   clearResolvedAlerts: () => void;
@@ -269,6 +271,7 @@ function buildInitial(): PoolState {
     delta_t: last.temp_coletor - last.temp_piscina,
     bomba_ligada: last.bomba_ligada,
     bomba_modo: persisted.bomba_modo ?? "automatico",
+    dosagem_modo: persisted.dosagem_modo ?? "automatico",
     setpoint_temp: persisted.setpoint_temp ?? 30,
     ultima_mudanca_bomba_t: now.getTime() - 1000 * 60 * 12,
     bomba_estado_desde_t: now.getTime() - 1000 * 60 * 12,
@@ -343,6 +346,10 @@ export const usePoolStore = create<Store>((set, get) => ({
   setMode: (m) => {
     saveSettings({ bomba_modo: m });
     set({ bomba_modo: m });
+  },
+  setDosingMode: (m) => {
+    saveSettings({ dosagem_modo: m });
+    set({ dosagem_modo: m });
   },
   togglePumpManual: () => {
     const s = get();

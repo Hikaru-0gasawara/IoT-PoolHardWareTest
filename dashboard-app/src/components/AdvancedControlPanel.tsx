@@ -104,13 +104,15 @@ function LivePanel() {
     data,
     dosingResponses,
     publishDosingCommand,
+    publishDosingMode,
   } = useMqtt();
 
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pendingDose, setPendingDose] = useState<DoseChemical | null>(null);
   const ultimaDosePorProduto = usePoolStore((s) => s.ultimaDosePorProduto);
   const doseTimestamps = usePoolStore((s) => s.doseTimestamps);
-  const modo = usePoolStore((s) => s.bomba_modo);
+  const modo = usePoolStore((s) => s.dosagem_modo);
+  const setDosingMode = usePoolStore((s) => s.setDosingMode);
   const now = useNow(30_000);
 
   const brokerConnected = status === "connected";
@@ -130,6 +132,16 @@ function LivePanel() {
       showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar comando");
     } finally {
       setPendingDose(null);
+    }
+  };
+
+  const handleDosingMode = async (m: "automatico" | "manual") => {
+    setDosingMode(m);
+    try {
+      await publishDosingMode(m);
+      showFeedback("ok", `Modo de dosagem enviado: ${m}`);
+    } catch (e) {
+      showFeedback("err", e instanceof Error ? e.message : "Falha ao publicar modo");
     }
   };
 
@@ -221,6 +233,31 @@ function LivePanel() {
           <span>{feedback.text}</span>
         </div>
       )}
+
+      {/* Modo de dosagem — independente da bomba de aquecimento */}
+      <div className="mt-4">
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
+          Modo de dosagem
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          <ModeButton
+            active={modo === "automatico"}
+            disabled={!brokerConnected}
+            icon={<Bot className="h-4 w-4" />}
+            label="Automático"
+            sub="Sistema dosa por sensores"
+            onClick={() => handleDosingMode("automatico")}
+          />
+          <ModeButton
+            active={modo === "manual"}
+            disabled={!brokerConnected}
+            icon={<Hand className="h-4 w-4" />}
+            label="Manual"
+            sub="Só doses do operador"
+            onClick={() => handleDosingMode("manual")}
+          />
+        </div>
+      </div>
 
       {/* Botões de dose manual */}
       <div className="mt-4">

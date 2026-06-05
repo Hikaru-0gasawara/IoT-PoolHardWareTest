@@ -44,10 +44,12 @@ export const MQTT_TOPICS = {
 export type MqttTopic = typeof MQTT_TOPICS[keyof typeof MQTT_TOPICS];
 
 // Tópicos que o DASHBOARD publica (firmware consome via subscribe).
-// dosagem/comando JSON: { parametro, origem, comando_id }
-// controle/modo   JSON: { modo }
+// dosagem/comando      JSON: { parametro, origem, comando_id }
+// controle/modo        JSON: { modo }  — modo da BOMBA de aquecimento solar
+// controle/dosagem/modo JSON: { modo } — modo da DOSAGEM química (independente)
 export const TOPIC_DOSING_COMMAND = `${MQTT_NAMESPACE}/dosagem/comando` as const;
 export const TOPIC_CONTROL_MODE = `${MQTT_NAMESPACE}/controle/modo` as const;
+export const TOPIC_DOSING_MODE = `${MQTT_NAMESPACE}/controle/dosagem/modo` as const;
 
 // Lista exibida no SettingsPanel — ordem reflete o que o firmware publica.
 export const PUBLISHED_TOPICS: readonly MqttTopic[] = [
@@ -89,7 +91,7 @@ export interface TopicMapEntry {
   /** Nome amigável do controle/leitura. */
   label: string;
   /** Tópico MQTT efetivo do comando/telemetria. */
-  topic: MqttTopic | typeof TOPIC_DOSING_COMMAND | typeof TOPIC_CONTROL_MODE;
+  topic: MqttTopic | typeof TOPIC_DOSING_COMMAND | typeof TOPIC_CONTROL_MODE | typeof TOPIC_DOSING_MODE;
   /** Direção do fluxo. */
   direction: TopicDirection;
   /** Campo lido no payload consolidado `.../dados`, quando a UI usa ele. */
@@ -124,9 +126,16 @@ export const COMMAND_TOPIC_MAP: readonly TopicMapEntry[] = [
     payload: `{ parametro: "base", origem: "manual", comando_id }`,
   },
   {
-    id: "modo-operacao",
-    label: "Modo de operação da bomba",
+    id: "modo-aquecimento",
+    label: "Modo da bomba de aquecimento",
     topic: TOPIC_CONTROL_MODE,
+    direction: "comando",
+    payload: `{ modo: "automatico" | "manual" }`,
+  },
+  {
+    id: "modo-dosagem",
+    label: "Modo da dosagem química",
+    topic: TOPIC_DOSING_MODE,
     direction: "comando",
     payload: `{ modo: "automatico" | "manual" }`,
   },

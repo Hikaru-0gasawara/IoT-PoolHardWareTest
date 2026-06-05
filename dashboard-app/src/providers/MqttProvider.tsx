@@ -37,7 +37,7 @@ import {
   isSensorError,
 } from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
-import { MQTT_TOPICS, TOPIC_DOSING_COMMAND, TOPIC_CONTROL_MODE } from "@/lib/mqttTopics";
+import { MQTT_TOPICS, TOPIC_DOSING_COMMAND, TOPIC_CONTROL_MODE, TOPIC_DOSING_MODE } from "@/lib/mqttTopics";
 import {
   type GapDetectorState,
   createGapDetector,
@@ -73,6 +73,7 @@ const MqttContext = createContext<MqttContextValue>({
   sensorFailures: { ph: 0, cloro: 0, alcalinidade: 0, piscina: 0, coletor: 0 },
   publishDosingCommand: noopAsync,
   publishControlMode: noopAsync,
+  publishDosingMode: noopAsync,
 });
 
 const SENTINEL = -99.0;
@@ -397,6 +398,12 @@ export function MqttProvider({ children }: { children: ReactNode }) {
     [publishWithThrottle],
   );
 
+  const publishDosingMode = useCallback(
+    (modo: "automatico" | "manual") =>
+      publishWithThrottle(TOPIC_DOSING_MODE, { modo }, `dosagem:modo`),
+    [publishWithThrottle],
+  );
+
   const value = useMemo<MqttContextValue>(
     () => ({
       status,
@@ -413,6 +420,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       sensorFailures,
       publishDosingCommand,
       publishControlMode,
+      publishDosingMode,
     }),
     [
       status,
@@ -428,6 +436,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       sensorFailures,
       publishDosingCommand,
       publishControlMode,
+      publishDosingMode,
     ],
   );
 

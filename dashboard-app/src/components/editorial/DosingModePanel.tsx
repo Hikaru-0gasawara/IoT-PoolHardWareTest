@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Droplets, FlaskConical, Beaker, Bot, Hand, CheckCircle2 } from "lucide-react";
 import { HoldButton } from "@/components/HoldButton";
-import { usePublishDosingCommand, usePublishControlMode, useConnection } from "@/hooks/useAquaSense";
+import { usePublishDosingCommand, usePublishDosingMode, useConnection } from "@/hooks/useAquaSense";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
 import { isSensorError } from "@/types/firmware";
@@ -43,12 +43,12 @@ function formatSince(t: number | null, now: number): string | null {
 
 export function DosingModePanel({ show = "both" }: { show?: "both" | "dose" | "mode" }) {
   const publishDosingCommand = usePublishDosingCommand();
-  const publishControlMode = usePublishControlMode();
+  const publishDosingMode = usePublishDosingMode();
   const conn = useConnection();
   const ph = usePoolStore((s) => s.ph);
   const cloro = usePoolStore((s) => s.cloro);
-  const modo = usePoolStore((s) => s.bomba_modo);
-  const setMode = usePoolStore((s) => s.setMode);
+  const modo = usePoolStore((s) => s.dosagem_modo);
+  const setMode = usePoolStore((s) => s.setDosingMode);
   const ultimaDosePorProduto = usePoolStore((s) => s.ultimaDosePorProduto);
   const doseTimestamps = usePoolStore((s) => s.doseTimestamps);
   const now = useNow(30_000);
@@ -165,8 +165,8 @@ export function DosingModePanel({ show = "both" }: { show?: "both" | "dose" | "m
     <article className="w-full h-full rounded-3xl border border-aqua-border bg-aqua-surface p-6 shadow-aqua flex flex-col">
       <header className="mb-5 flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-display text-lg font-semibold text-aqua-text">Modo de operação</h3>
-          <p className="text-xs text-aqua-text-muted mt-1">Controla quem decide as dosagens.</p>
+          <h3 className="font-display text-lg font-semibold text-aqua-text">Modo de dosagem</h3>
+          <p className="text-xs text-aqua-text-muted mt-1">Independente da bomba de aquecimento.</p>
         </div>
         <span
           aria-hidden={hasLiveFirmware}
@@ -194,7 +194,7 @@ export function DosingModePanel({ show = "both" }: { show?: "both" | "dose" | "m
               aria-checked={active}
               onClick={() => {
                 setMode(m.key);
-                void publishControlMode(m.key).catch(() => undefined);
+                void publishDosingMode(m.key).catch(() => undefined);
               }}
               className={[
                 "flex-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all",

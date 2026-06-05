@@ -112,7 +112,10 @@ export interface MqttContextValue {
   // Publica um comando de dosagem manual. Throttle de 1s; rejeita quando
   // desconectado. Gera comando_id automaticamente.
   publishDosingCommand: (parameter: DoseChemical) => Promise<void>;
-  // Publica o modo de operação da bomba (controle/modo). Throttle de 1s;
-  // rejeita quando desconectado.
+  // Publica o modo da BOMBA de aquecimento solar (controle/modo). Throttle de
+  // 1s; rejeita quando desconectado.
   publishControlMode: (modo: "automatico" | "manual") => Promise<void>;
+  // Publica o modo da DOSAGEM química (controle/dosagem/modo), independente da
+  // bomba. Throttle de 1s; rejeita quando desconectado.
+  publishDosingMode: (modo: "automatico" | "manual") => Promise<void>;
 }

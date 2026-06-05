@@ -103,7 +103,12 @@ export function usePublishDosingCommand() {
   return useMqtt().publishDosingCommand;
 }
 
-// Publica o modo de operação da bomba (controle/modo). Throttle de 1s.
+// Publica o modo da bomba de aquecimento solar (controle/modo). Throttle de 1s.
 export function usePublishControlMode() {
   return useMqtt().publishControlMode;
+}
+
+// Publica o modo da dosagem química (controle/dosagem/modo). Throttle de 1s.
+export function usePublishDosingMode() {
+  return useMqtt().publishDosingMode;
 }
