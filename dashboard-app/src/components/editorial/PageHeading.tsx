@@ -17,10 +17,7 @@ interface PageHeadingProps {
 export function PageHeading({ eyebrow, title, subtitle, action, className }: PageHeadingProps) {
   return (
     <header
-      className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
-        className,
-      )}
+      className={cn("flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between", className)}
     >
       <div className="min-w-0">
         {eyebrow && <p className="text-label mb-2.5">{eyebrow}</p>}
@@ -28,9 +25,7 @@ export function PageHeading({ eyebrow, title, subtitle, action, className }: Pag
           {title}
         </h1>
         {subtitle && (
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-aqua-text-muted">
-            {subtitle}
-          </p>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-aqua-text-muted">{subtitle}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}

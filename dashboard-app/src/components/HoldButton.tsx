@@ -77,7 +77,11 @@ export function HoldButton({
     <button
       type="button"
       disabled={effectiveDisabled}
-      title={effectiveDisabled ? disabledReason : `Segure por ${(durationMs / 1000).toFixed(1)}s para confirmar`}
+      title={
+        effectiveDisabled
+          ? disabledReason
+          : `Segure por ${(durationMs / 1000).toFixed(1)}s para confirmar`
+      }
       aria-label={typeof children === "string" ? children : undefined}
       aria-disabled={effectiveDisabled}
       {...handlers}

@@ -5,8 +5,13 @@
 import { useMqtt } from "@/providers/MqttProvider";
 import { usePoolStore } from "@/store/poolStore";
 import type {
-  AquaSenseData, DataSource, DosingResponse,
-  MqttConnectionStatus, PumpState, Temperatures, WaterQuality,
+  AquaSenseData,
+  DataSource,
+  DosingResponse,
+  MqttConnectionStatus,
+  PumpState,
+  Temperatures,
+  WaterQuality,
 } from "@/types/firmware";
 
 function buildFromStore(): AquaSenseData {
@@ -37,7 +42,10 @@ function buildFromStore(): AquaSenseData {
     controle: ctrl,
     alertas: s.alerts
       .filter((a) => a.status === "ativo" && !a.id.startsWith("shadow:"))
-      .map((a) => `${a.parametro} ${a.severity === "crit" ? "crítico" : "atenção"}: ${a.valor_atual.toFixed(2)}${a.unidade ? " " + a.unidade : ""}`),
+      .map(
+        (a) =>
+          `${a.parametro} ${a.severity === "crit" ? "crítico" : "atenção"}: ${a.valor_atual.toFixed(2)}${a.unidade ? " " + a.unidade : ""}`,
+      ),
   };
 }
 

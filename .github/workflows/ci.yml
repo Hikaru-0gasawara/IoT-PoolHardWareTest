@@ -13,6 +13,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard-app
     steps:
       - uses: actions/checkout@v4
 

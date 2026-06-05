@@ -3,8 +3,18 @@ import { usePoolStore } from "@/store/poolStore";
 import { usePublishControlMode, useConnection } from "@/hooks/useAquaSense";
 
 const MODES = [
-  { key: "automatico" as const, label: "Automático", desc: "ESP32 decide via histerese ΔT 5°C / 1°C.", icon: <Bot className="h-4 w-4" /> },
-  { key: "parado" as const, label: "Parado", desc: "Bomba pausada — clique em Automático para retomar a circulação.", icon: <Ban className="h-4 w-4" /> },
+  {
+    key: "automatico" as const,
+    label: "Automático",
+    desc: "ESP32 decide via histerese ΔT 5°C / 1°C.",
+    icon: <Bot className="h-4 w-4" />,
+  },
+  {
+    key: "parado" as const,
+    label: "Parado",
+    desc: "Bomba pausada — clique em Automático para retomar a circulação.",
+    icon: <Ban className="h-4 w-4" />,
+  },
 ];
 
 export function HeatingModeWidget() {
@@ -22,7 +32,9 @@ export function HeatingModeWidget() {
       <header className="mb-5 flex items-start justify-between gap-2">
         <div>
           <h3 className="font-display text-lg font-semibold text-aqua-text">Modo da bomba</h3>
-          <p className="text-xs text-aqua-text-muted mt-1">Aquecimento solar · independente da dosagem.</p>
+          <p className="text-xs text-aqua-text-muted mt-1">
+            Aquecimento solar · independente da dosagem.
+          </p>
         </div>
         <span
           aria-hidden={hasLiveFirmware}
@@ -71,15 +83,15 @@ export function HeatingModeWidget() {
       </div>
 
       <div className="mt-auto pt-5">
-        <div className={[
-          "rounded-2xl border p-4 transition-colors",
-          isParado
-            ? "border-status-warn/20 bg-status-warn/5"
-            : "border-aqua-accent/15 bg-aqua-accent/5",
-        ].join(" ")}>
-          <p className="text-[11px] leading-relaxed text-aqua-text-muted">
-            {activeMode.desc}
-          </p>
+        <div
+          className={[
+            "rounded-2xl border p-4 transition-colors",
+            isParado
+              ? "border-status-warn/20 bg-status-warn/5"
+              : "border-aqua-accent/15 bg-aqua-accent/5",
+          ].join(" ")}
+        >
+          <p className="text-[11px] leading-relaxed text-aqua-text-muted">{activeMode.desc}</p>
         </div>
       </div>
     </article>

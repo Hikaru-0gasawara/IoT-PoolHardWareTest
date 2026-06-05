@@ -82,14 +82,13 @@ export function AlertsPanel() {
   );
 
   // esconde shadows internos
-  const alerts = useMemo(
-    () => alertsRaw.filter((a) => !a.id.startsWith("shadow:")),
-    [alertsRaw],
-  );
+  const alerts = useMemo(() => alertsRaw.filter((a) => !a.id.startsWith("shadow:")), [alertsRaw]);
 
   const counts = useMemo(() => {
     const c = { ativo: 0, reconhecido: 0, resolvido: 0 } as Record<AlertFilter, number>;
-    alerts.forEach((a) => { c[classifyForFilter(a)]++; });
+    alerts.forEach((a) => {
+      c[classifyForFilter(a)]++;
+    });
     return c;
   }, [alerts]);
 
@@ -107,7 +106,12 @@ export function AlertsPanel() {
             Reportado pelo ESP32 agora
           </h3>
           <span className="font-tabular text-[10px] text-aqua-text-muted">
-            Fonte: {conn.source === "mqtt" ? `MQTT · ciclo #${conn.cycle ?? "—"}` : conn.source === "fallback" ? "simulação local" : "—"}
+            Fonte:{" "}
+            {conn.source === "mqtt"
+              ? `MQTT · ciclo #${conn.cycle ?? "—"}`
+              : conn.source === "fallback"
+                ? "simulação local"
+                : "—"}
           </span>
         </div>
         {liveAlerts.length === 0 ? (
@@ -117,7 +121,10 @@ export function AlertsPanel() {
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {liveAlerts.map((msg, i) => (
-              <li key={`${i}-${msg}`} className="flex items-center gap-2 rounded-xl border border-status-crit/40 bg-status-crit/10 p-3 text-sm font-medium text-status-crit">
+              <li
+                key={`${i}-${msg}`}
+                className="flex items-center gap-2 rounded-xl border border-status-crit/40 bg-status-crit/10 p-3 text-sm font-medium text-status-crit"
+              >
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span className="truncate">{msg}</span>
               </li>
@@ -136,7 +143,8 @@ export function AlertsPanel() {
           </div>
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Filtrar alertas">
             {(["ativo", "reconhecido", "resolvido"] as const).map((f) => {
-              const label = f === "ativo" ? "Ativo" : f === "reconhecido" ? "Reconhecido" : "Resolvido";
+              const label =
+                f === "ativo" ? "Ativo" : f === "reconhecido" ? "Reconhecido" : "Resolvido";
               return (
                 <button
                   key={f}
@@ -175,8 +183,12 @@ function EmptyState({ filter }: { filter: AlertFilter }) {
     <li
       className="rounded-xl border border-dashed p-8 text-center"
       style={{
-        borderColor: isOk ? "color-mix(in oklab, var(--status-ok) 40%, transparent)" : "var(--aqua-border)",
-        backgroundColor: isOk ? "color-mix(in oklab, var(--status-ok) 6%, transparent)" : "transparent",
+        borderColor: isOk
+          ? "color-mix(in oklab, var(--status-ok) 40%, transparent)"
+          : "var(--aqua-border)",
+        backgroundColor: isOk
+          ? "color-mix(in oklab, var(--status-ok) 6%, transparent)"
+          : "transparent",
       }}
     >
       <Icon
@@ -195,7 +207,15 @@ function EmptyState({ filter }: { filter: AlertFilter }) {
   );
 }
 
-function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; onAck: () => void }) {
+function AlertRow({
+  alert,
+  now,
+  onAck,
+}: {
+  alert: AggregatedAlert;
+  now: number;
+  onAck: () => void;
+}) {
   const isResolved = alert.status === "resolvido";
   const isAcked = alert.ack_em != null && !isResolved;
   const sev = isResolved ? alert.severity_max : alert.severity;
@@ -253,7 +273,8 @@ function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; 
           <span className="text-sm font-semibold text-aqua-text">
             {t.label}{" "}
             <span className="font-tabular">
-              {alert.valor_atual.toFixed(2)}{alert.unidade ? " " + alert.unidade : ""}
+              {alert.valor_atual.toFixed(2)}
+              {alert.unidade ? " " + alert.unidade : ""}
             </span>
           </span>
           <span
@@ -263,7 +284,9 @@ function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; 
             {sev === "crit" ? "Crítico" : "Atenção"}
           </span>
           <span className="font-tabular text-[10px] text-aqua-text-muted">
-            {isResolved ? `resolvido ${relativeTime(since, now)}` : `iniciado ${relativeTime(since, now)}`}
+            {isResolved
+              ? `resolvido ${relativeTime(since, now)}`
+              : `iniciado ${relativeTime(since, now)}`}
           </span>
         </div>
         <p className="mt-0.5 text-xs text-aqua-text-muted">
@@ -276,7 +299,8 @@ function AlertRow({ alert, now, onAck }: { alert: AggregatedAlert; now: number; 
           <span className="font-tabular">{picoLabel}</span>
         </p>
         <p className="mt-0.5 font-tabular text-[11px] text-aqua-text-muted">
-          {alert.ocorrencias} {alert.ocorrencias === 1 ? "ocorrência" : "ocorrências"} em {durationLabel(duration)}
+          {alert.ocorrencias} {alert.ocorrencias === 1 ? "ocorrência" : "ocorrências"} em{" "}
+          {durationLabel(duration)}
           {isResolved && alert.severity_max === "crit" && alert.severity !== alert.severity_max && (
             <span className="ml-2 text-status-crit">· chegou a CRÍTICO</span>
           )}

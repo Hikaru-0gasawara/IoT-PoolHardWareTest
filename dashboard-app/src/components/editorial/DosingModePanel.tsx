@@ -21,15 +21,47 @@ const CHEMICALS: ReadonlyArray<{
   icon: React.ReactNode;
   sensorPath: "cloro" | "ph";
 }> = [
-  { key: "cloro", label: "Dose de Cloro", subtitle: "Bomba peristáltica · GPIO 25", tone: "danger", icon: <Droplets className="h-4 w-4" />, sensorPath: "cloro" },
-  { key: "acido", label: "Dose de Ácido (pH−)", subtitle: "Bomba peristáltica · GPIO 32", tone: "warn", icon: <FlaskConical className="h-4 w-4" />, sensorPath: "ph" },
-  { key: "base", label: "Dose de Base (pH+)", subtitle: "Bomba peristáltica · GPIO 14", tone: "warn", icon: <Beaker className="h-4 w-4" />, sensorPath: "ph" },
+  {
+    key: "cloro",
+    label: "Dose de Cloro",
+    subtitle: "Bomba peristáltica · GPIO 25",
+    tone: "danger",
+    icon: <Droplets className="h-4 w-4" />,
+    sensorPath: "cloro",
+  },
+  {
+    key: "acido",
+    label: "Dose de Ácido (pH−)",
+    subtitle: "Bomba peristáltica · GPIO 32",
+    tone: "warn",
+    icon: <FlaskConical className="h-4 w-4" />,
+    sensorPath: "ph",
+  },
+  {
+    key: "base",
+    label: "Dose de Base (pH+)",
+    subtitle: "Bomba peristáltica · GPIO 14",
+    tone: "warn",
+    icon: <Beaker className="h-4 w-4" />,
+    sensorPath: "ph",
+  },
 ];
 
-const MODES: ReadonlyArray<{ key: PumpMode; label: string; desc: string; icon: React.ReactNode }> = [
-  { key: "automatico", label: "Automático", desc: "Sistema decide dosagens conforme leituras dos sensores.", icon: <Bot className="h-4 w-4" /> },
-  { key: "manual", label: "Manual", desc: "Aguardando comando do operador. Sem dosagem automática.", icon: <Hand className="h-4 w-4" /> },
-];
+const MODES: ReadonlyArray<{ key: PumpMode; label: string; desc: string; icon: React.ReactNode }> =
+  [
+    {
+      key: "automatico",
+      label: "Automático",
+      desc: "Sistema decide dosagens conforme leituras dos sensores.",
+      icon: <Bot className="h-4 w-4" />,
+    },
+    {
+      key: "manual",
+      label: "Manual",
+      desc: "Aguardando comando do operador. Sem dosagem automática.",
+      icon: <Hand className="h-4 w-4" />,
+    },
+  ];
 
 function formatSince(t: number | null, now: number): string | null {
   if (t == null) return null;
@@ -110,7 +142,9 @@ export function DosingModePanel({ show = "both" }: { show?: "both" | "dose" | "m
           <span className="rounded-full border border-aqua-border bg-aqua-bg/60 px-2.5 py-1 text-[11px] font-semibold text-aqua-text tnum">
             {dosesHoje} {dosesHoje === 1 ? "dose hoje" : "doses hoje"}
           </span>
-          <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-aqua-text-muted">Segure 1.5s para confirmar</span>
+          <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-aqua-text-muted">
+            Segure 1.5s para confirmar
+          </span>
         </div>
       </header>
 

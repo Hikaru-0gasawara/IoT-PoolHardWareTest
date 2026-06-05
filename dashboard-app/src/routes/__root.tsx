@@ -38,10 +38,24 @@ export const Route = createRootRoute({
       { name: "twitter:card", content: "summary" },
       { property: "og:title", content: "AquaSense IoT" },
       { name: "twitter:title", content: "AquaSense IoT" },
-      { property: "og:description", content: "Dashboard IoT para piscina aquecida com coletor solar." },
-      { name: "twitter:description", content: "Dashboard IoT para piscina aquecida com coletor solar." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5178c15b-f936-4cc3-a1d0-ce4ab8685cef/id-preview-4ab8070d--27924d4a-4fa7-477c-9754-4619ed325a2d.lovable.app-1777903435730.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5178c15b-f936-4cc3-a1d0-ce4ab8685cef/id-preview-4ab8070d--27924d4a-4fa7-477c-9754-4619ed325a2d.lovable.app-1777903435730.png" },
+      {
+        property: "og:description",
+        content: "Dashboard IoT para piscina aquecida com coletor solar.",
+      },
+      {
+        name: "twitter:description",
+        content: "Dashboard IoT para piscina aquecida com coletor solar.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5178c15b-f936-4cc3-a1d0-ce4ab8685cef/id-preview-4ab8070d--27924d4a-4fa7-477c-9754-4619ed325a2d.lovable.app-1777903435730.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5178c15b-f936-4cc3-a1d0-ce4ab8685cef/id-preview-4ab8070d--27924d4a-4fa7-477c-9754-4619ed325a2d.lovable.app-1777903435730.png",
+      },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

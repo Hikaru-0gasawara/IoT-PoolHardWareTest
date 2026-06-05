@@ -29,9 +29,7 @@ export default defineConfig({
     // Grava vídeo do teste; descarta se passar (retém só em falha).
     video: "retain-on-failure",
   },
-  projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: `npm run preview -- --port ${PORT} --strictPort`,
     url: BASE_URL,

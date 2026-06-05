@@ -41,7 +41,7 @@ export const MQTT_TOPICS = {
   DOSAGEM_EVENTO: `${MQTT_NAMESPACE}/dosagem/evento`,
 } as const;
 
-export type MqttTopic = typeof MQTT_TOPICS[keyof typeof MQTT_TOPICS];
+export type MqttTopic = (typeof MQTT_TOPICS)[keyof typeof MQTT_TOPICS];
 
 // Tópicos que o DASHBOARD publica (firmware consome via subscribe).
 // dosagem/comando      JSON: { parametro, origem, comando_id }
@@ -91,7 +91,11 @@ export interface TopicMapEntry {
   /** Nome amigável do controle/leitura. */
   label: string;
   /** Tópico MQTT efetivo do comando/telemetria. */
-  topic: MqttTopic | typeof TOPIC_DOSING_COMMAND | typeof TOPIC_CONTROL_MODE | typeof TOPIC_DOSING_MODE;
+  topic:
+    | MqttTopic
+    | typeof TOPIC_DOSING_COMMAND
+    | typeof TOPIC_CONTROL_MODE
+    | typeof TOPIC_DOSING_MODE;
   /** Direção do fluxo. */
   direction: TopicDirection;
   /** Campo lido no payload consolidado `.../dados`, quando a UI usa ele. */

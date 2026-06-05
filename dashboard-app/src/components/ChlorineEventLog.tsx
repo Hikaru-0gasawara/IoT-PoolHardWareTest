@@ -29,7 +29,10 @@ export function ChlorineEventLog() {
   return (
     <section aria-labelledby="cloro-eventos-heading" className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 id="cloro-eventos-heading" className="font-display text-xl font-semibold tracking-tight text-aqua-text">
+        <h2
+          id="cloro-eventos-heading"
+          className="font-display text-xl font-semibold tracking-tight text-aqua-text"
+        >
           Eventos de Cloro
         </h2>
         <p className="text-xs text-aqua-text-muted">Cruzamentos da faixa 1.0–3.0 ppm</p>
@@ -43,27 +46,35 @@ export function ChlorineEventLog() {
         ) : (
           <ul className="divide-y divide-aqua-border">
             {events.map((e) => {
-              const color = e.tipo === "entrou_faixa" ? "var(--status-ok)" : statusColor(e.severity);
-              const Icon = e.tipo === "entrou_faixa"
-                ? CheckCircle2
-                : e.direcao === "baixo"
-                  ? ArrowDownRight
-                  : e.direcao === "alto"
-                    ? ArrowUpRight
-                    : AlertTriangle;
+              const color =
+                e.tipo === "entrou_faixa" ? "var(--status-ok)" : statusColor(e.severity);
+              const Icon =
+                e.tipo === "entrou_faixa"
+                  ? CheckCircle2
+                  : e.direcao === "baixo"
+                    ? ArrowDownRight
+                    : e.direcao === "alto"
+                      ? ArrowUpRight
+                      : AlertTriangle;
               return (
                 <li key={`${e.t}-${e.valor}`} className="flex items-center gap-3 py-2.5">
                   <span
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                    style={{ backgroundColor: `color-mix(in oklab, ${color} 15%, transparent)`, color }}
+                    style={{
+                      backgroundColor: `color-mix(in oklab, ${color} 15%, transparent)`,
+                      color,
+                    }}
                   >
                     <Icon className="h-4 w-4" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-aqua-text">{describe(e)}</p>
                     <p className="text-xs text-aqua-text-muted">
-                      <span className="font-tabular" style={{ color }}>{e.valor.toFixed(1)} ppm</span>
-                      {" · "}{relTime(e.t)}
+                      <span className="font-tabular" style={{ color }}>
+                        {e.valor.toFixed(1)} ppm
+                      </span>
+                      {" · "}
+                      {relTime(e.t)}
                     </p>
                   </div>
                 </li>

@@ -25,7 +25,10 @@ export const Route = createFileRoute("/config")({
   head: () => ({
     meta: [
       { title: "Configurações — AquaSense IoT" },
-      { name: "description", content: "Hardware, conexão MQTT, calibração, equipe e informações do sistema." },
+      {
+        name: "description",
+        content: "Hardware, conexão MQTT, calibração, equipe e informações do sistema.",
+      },
       { property: "og:title", content: "Configurações — AquaSense IoT" },
       { property: "og:description", content: "Detalhes técnicos do sistema embarcado." },
     ],

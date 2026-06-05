@@ -19,9 +19,17 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "AquaSense IoT — Monitor de piscina em tempo real" },
-      { name: "description", content: "Dashboard interativo para monitoramento e controle de piscina aquecida via coletor solar. Sensores ESP32 + MQTT." },
+      {
+        name: "description",
+        content:
+          "Dashboard interativo para monitoramento e controle de piscina aquecida via coletor solar. Sensores ESP32 + MQTT.",
+      },
       { property: "og:title", content: "AquaSense IoT — Monitor de piscina" },
-      { property: "og:description", content: "Telemetria em tempo real: pH, ORP, condutividade, temperatura e controle automático da bomba." },
+      {
+        property: "og:description",
+        content:
+          "Telemetria em tempo real: pH, ORP, condutividade, temperatura e controle automático da bomba.",
+      },
     ],
   }),
   component: HomePage,
@@ -77,8 +85,7 @@ function HomePage() {
   const alcalinidadeTrend = useTrend("alcalinidade");
   const tempTrend = useTrend("temp_piscina");
 
-  const heroEstado: "circulando" | "parada" | "emergencia" =
-    bombaOn ? "circulando" : "parada";
+  const heroEstado: "circulando" | "parada" | "emergencia" = bombaOn ? "circulando" : "parada";
 
   return (
     <AppShell>
@@ -93,7 +100,10 @@ function HomePage() {
               onClick={() => exportDailyReport()}
               className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
             >
-              <FileDown className="h-4 w-4 transition-transform group-hover:translate-y-0.5" aria-hidden />
+              <FileDown
+                className="h-4 w-4 transition-transform group-hover:translate-y-0.5"
+                aria-hidden
+              />
               Exportar PDF
             </button>
           }
@@ -116,58 +126,60 @@ function HomePage() {
           </div>
         </div>
 
-
         <Reveal>
-        <section aria-labelledby="qualidade-heading" className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 id="qualidade-heading" className="font-display text-xl font-semibold tracking-tight text-aqua-text">
-              Qualidade da água
-            </h2>
-            <p className="text-xs text-aqua-text-muted">Faixas do firmware v2.3</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <WaterQualityCard
-              paramKey="ph"
-              value={ph}
-              diff={phDiff}
-              trend={phTrend}
-              sensorError={isSensorError(ph)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="cloro"
-              value={cloro}
-              diff={cloroDiff}
-              trend={cloroTrend}
-              sensorError={isSensorError(cloro)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="alcalinidade"
-              value={alcalinidade}
-              diff={alcalinidadeDiff}
-              trend={alcalinidadeTrend}
-              sensorError={isSensorError(alcalinidade)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-            <WaterQualityCard
-              paramKey="temp_piscina"
-              value={tempPool}
-              diff={tempDiff}
-              trend={tempTrend}
-              sensorError={isSensorError(tempPool)}
-              dosing={false}
-              estopActive={false}
-              loading={loading}
-            />
-          </div>
-        </section>
+          <section aria-labelledby="qualidade-heading" className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <h2
+                id="qualidade-heading"
+                className="font-display text-xl font-semibold tracking-tight text-aqua-text"
+              >
+                Qualidade da água
+              </h2>
+              <p className="text-xs text-aqua-text-muted">Faixas do firmware v2.3</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <WaterQualityCard
+                paramKey="ph"
+                value={ph}
+                diff={phDiff}
+                trend={phTrend}
+                sensorError={isSensorError(ph)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="cloro"
+                value={cloro}
+                diff={cloroDiff}
+                trend={cloroTrend}
+                sensorError={isSensorError(cloro)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="alcalinidade"
+                value={alcalinidade}
+                diff={alcalinidadeDiff}
+                trend={alcalinidadeTrend}
+                sensorError={isSensorError(alcalinidade)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+              <WaterQualityCard
+                paramKey="temp_piscina"
+                value={tempPool}
+                diff={tempDiff}
+                trend={tempTrend}
+                sensorError={isSensorError(tempPool)}
+                dosing={false}
+                estopActive={false}
+                loading={loading}
+              />
+            </div>
+          </section>
         </Reveal>
 
         <Reveal delay={60}>

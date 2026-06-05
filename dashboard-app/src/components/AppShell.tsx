@@ -25,7 +25,8 @@ function MqttStatusPill({ conn, now, updatedTxt, mobile }: MqttStatusPillProps) 
   const view = describeMqttStatus(conn.status, conn.source, conn.lastMessageAt, now);
   const color = toneToColor(view.tone);
   const isLive = conn.source === "mqtt" && view.staleness === "fresh";
-  const isRetained = conn.source === "mqtt" && (view.staleness === "stale" || view.staleness === "recent");
+  const isRetained =
+    conn.source === "mqtt" && (view.staleness === "stale" || view.staleness === "recent");
 
   let label = view.label;
   if (conn.source === "mqtt" && typeof conn.cycle === "number") {
@@ -40,11 +41,7 @@ function MqttStatusPill({ conn, now, updatedTxt, mobile }: MqttStatusPillProps) 
 
   return (
     <div
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border",
-        padding,
-        textSize,
-      )}
+      className={cn("inline-flex items-center gap-1.5 rounded-full border", padding, textSize)}
       style={{
         borderColor: `color-mix(in oklab, ${color} 35%, transparent)`,
         backgroundColor: `color-mix(in oklab, ${color} 10%, transparent)`,
@@ -61,7 +58,9 @@ function MqttStatusPill({ conn, now, updatedTxt, mobile }: MqttStatusPillProps) 
       <span className="font-medium">{label}</span>
       {!mobile && (
         <>
-          <span className="opacity-40" aria-hidden>·</span>
+          <span className="opacity-40" aria-hidden>
+            ·
+          </span>
           <span className="font-tabular opacity-80">{updatedTxt}</span>
         </>
       )}
@@ -105,7 +104,9 @@ export function Header() {
             </div>
             <div className="leading-tight">
               <div className="font-semibold tracking-tight text-aqua-text">AquaSense</div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-aqua-text-muted">IoT · Pool monitor</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-aqua-text-muted">
+                IoT · Pool monitor
+              </div>
             </div>
           </Link>
 
@@ -147,7 +148,11 @@ export function Header() {
               role="status"
               aria-live="polite"
             >
-              <span className="h-2 w-2 rounded-full aqua-pulse" style={{ backgroundColor: "var(--status-crit)" }} aria-hidden />
+              <span
+                className="h-2 w-2 rounded-full aqua-pulse"
+                style={{ backgroundColor: "var(--status-crit)" }}
+                aria-hidden
+              />
               <span className="text-sm font-medium" style={{ color: "var(--status-crit)" }}>
                 ESP32 sem resposta
               </span>
@@ -185,16 +190,31 @@ export function Header() {
               backgroundColor: `color-mix(in oklab, ${statusColor(status)} 15%, transparent)`,
             }}
           >
-            <span className="h-1.5 w-1.5 rounded-full aqua-pulse" style={{ backgroundColor: statusColor(status) }} aria-hidden />
-            <span className="text-xs font-medium" style={{ color: statusColor(status) }}>{statusLabel(status)}</span>
+            <span
+              className="h-1.5 w-1.5 rounded-full aqua-pulse"
+              style={{ backgroundColor: statusColor(status) }}
+              aria-hidden
+            />
+            <span className="text-xs font-medium" style={{ color: statusColor(status) }}>
+              {statusLabel(status)}
+            </span>
           </div>
         ) : showMqttCritPill ? (
           <div
             className="flex items-center gap-2 rounded-full border px-3 py-1"
-            style={{ borderColor: "var(--status-crit)", backgroundColor: "color-mix(in oklab, var(--status-crit) 15%, transparent)" }}
+            style={{
+              borderColor: "var(--status-crit)",
+              backgroundColor: "color-mix(in oklab, var(--status-crit) 15%, transparent)",
+            }}
           >
-            <span className="h-1.5 w-1.5 rounded-full aqua-pulse" style={{ backgroundColor: "var(--status-crit)" }} aria-hidden />
-            <span className="text-xs font-medium" style={{ color: "var(--status-crit)" }}>ESP32 sem resposta</span>
+            <span
+              className="h-1.5 w-1.5 rounded-full aqua-pulse"
+              style={{ backgroundColor: "var(--status-crit)" }}
+              aria-hidden
+            />
+            <span className="text-xs font-medium" style={{ color: "var(--status-crit)" }}>
+              ESP32 sem resposta
+            </span>
           </div>
         ) : (
           <MqttStatusPill conn={conn} now={now} updatedTxt={updatedTxt} mobile />
@@ -238,7 +258,9 @@ export function MobileTabBar() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  useEffect(() => { usePoolStore.getState()._start(); }, []);
+  useEffect(() => {
+    usePoolStore.getState()._start();
+  }, []);
   const conn = useConnection();
   const status = usePoolStore((s) => s.status_geral);
   // Banner secundário só aparece quando o sistema está em fallback E a água
@@ -271,32 +293,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="relative z-10">
         <Header />
 
-      {showFallbackBanner && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 border-b-2 border-status-warn/50 bg-aqua-surface px-4 py-2.5 text-xs text-aqua-text"
-        >
-          <span className="inline-flex items-center gap-2">
-            <TriangleAlert className="h-4 w-4 shrink-0 text-status-warn" aria-hidden />
-            <span>
-              <strong className="font-semibold">Sem conexão com o ESP32</strong>
-              {" "}— exibindo simulação local. Os valores voltam ao normal quando o broker responder.
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={handleReconnect}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-status-warn/60 px-2.5 py-1 font-semibold text-aqua-text transition-colors hover:bg-status-warn/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-warn"
+        {showFallbackBanner && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 border-b-2 border-status-warn/50 bg-aqua-surface px-4 py-2.5 text-xs text-aqua-text"
           >
-            <RefreshCw className="h-3 w-3 text-status-warn" aria-hidden /> Tentar reconectar
-          </button>
-        </div>
-      )}
-      <main className="mx-auto max-w-[1400px] px-4 pb-24 pt-6 sm:px-6 lg:pb-10">
-        <RouteTransition>{children}</RouteTransition>
-      </main>
-      <MobileTabBar />
+            <span className="inline-flex items-center gap-2">
+              <TriangleAlert className="h-4 w-4 shrink-0 text-status-warn" aria-hidden />
+              <span>
+                <strong className="font-semibold">Sem conexão com o ESP32</strong> — exibindo
+                simulação local. Os valores voltam ao normal quando o broker responder.
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={handleReconnect}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-status-warn/60 px-2.5 py-1 font-semibold text-aqua-text transition-colors hover:bg-status-warn/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-warn"
+            >
+              <RefreshCw className="h-3 w-3 text-status-warn" aria-hidden /> Tentar reconectar
+            </button>
+          </div>
+        )}
+        <main className="mx-auto max-w-[1400px] px-4 pb-24 pt-6 sm:px-6 lg:pb-10">
+          <RouteTransition>{children}</RouteTransition>
+        </main>
+        <MobileTabBar />
       </div>
     </div>
   );

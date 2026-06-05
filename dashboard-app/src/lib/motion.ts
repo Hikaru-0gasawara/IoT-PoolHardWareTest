@@ -28,8 +28,17 @@ type Params = Parameters<typeof animeAnimate>[1];
 
 function extractFinals(params: Record<string, unknown>): Record<string, unknown> {
   const skip = new Set([
-    "duration","delay","ease","easing","loop","alternate",
-    "autoplay","onComplete","onBegin","onUpdate","composition",
+    "duration",
+    "delay",
+    "ease",
+    "easing",
+    "loop",
+    "alternate",
+    "autoplay",
+    "onComplete",
+    "onBegin",
+    "onUpdate",
+    "composition",
   ]);
   const finals: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(params)) {

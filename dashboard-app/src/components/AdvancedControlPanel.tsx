@@ -38,11 +38,7 @@ import { useConnection } from "@/hooks/useAquaSense";
 import { useNow } from "@/hooks/useNow";
 import { POOL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import {
-  COMMAND_TOPIC_MAP,
-  TELEMETRY_TOPIC_MAP,
-  type TopicMapEntry,
-} from "@/lib/mqttTopics";
+import { COMMAND_TOPIC_MAP, TELEMETRY_TOPIC_MAP, type TopicMapEntry } from "@/lib/mqttTopics";
 import { reasonToBlockDose as computeBlockReason } from "@/lib/dosingGuards";
 import type { DoseChemical, DosingResponse } from "@/types/firmware";
 import type { PumpMode } from "@/types/aquasense";
@@ -96,14 +92,8 @@ export function AdvancedControlPanel() {
 // ────────────────────────────────────────────────────────────────────
 
 function LivePanel() {
-  const {
-    status,
-    source,
-    data,
-    dosingResponses,
-    publishDosingCommand,
-    publishDosingMode,
-  } = useMqtt();
+  const { status, source, data, dosingResponses, publishDosingCommand, publishDosingMode } =
+    useMqtt();
 
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pendingDose, setPendingDose] = useState<DoseChemical | null>(null);
@@ -145,9 +135,12 @@ function LivePanel() {
 
   const reasonToBlockDose = (chem: DoseChemical): string | null => {
     const meta = CHEMICALS.find((c) => c.key === chem);
-    const sensorValue = meta && data
-      ? (meta.sensorPath === "ph" ? data.qualidade_agua.ph : data.qualidade_agua.cloro)
-      : 0;
+    const sensorValue =
+      meta && data
+        ? meta.sensorPath === "ph"
+          ? data.qualidade_agua.ph
+          : data.qualidade_agua.cloro
+        : 0;
     return computeBlockReason({
       chem,
       hasLiveFirmware,
@@ -178,12 +171,17 @@ function LivePanel() {
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent" aria-hidden>
+          <span
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent"
+            aria-hidden
+          >
             <Settings2 className="h-4 w-4" />
           </span>
           <div>
             <h2 className="text-sm font-semibold text-aqua-text">Dosagem química</h2>
-            <p className="text-[11px] text-aqua-text-muted">Modo de dosagem e comandos manuais via MQTT</p>
+            <p className="text-[11px] text-aqua-text-muted">
+              Modo de dosagem e comandos manuais via MQTT
+            </p>
           </div>
         </div>
         <ConnectionPill brokerConnected={brokerConnected} hasLiveFirmware={hasLiveFirmware} />
@@ -300,8 +298,18 @@ function LivePanel() {
   );
 }
 
-function ConnectionPill({ brokerConnected, hasLiveFirmware }: { brokerConnected: boolean; hasLiveFirmware: boolean }) {
-  const label = hasLiveFirmware ? "ESP32 ao vivo" : brokerConnected ? "Aguardando ESP32" : "MQTT offline";
+function ConnectionPill({
+  brokerConnected,
+  hasLiveFirmware,
+}: {
+  brokerConnected: boolean;
+  hasLiveFirmware: boolean;
+}) {
+  const label = hasLiveFirmware
+    ? "ESP32 ao vivo"
+    : brokerConnected
+      ? "Aguardando ESP32"
+      : "MQTT offline";
   const ok = hasLiveFirmware;
   return (
     <span
@@ -344,7 +352,9 @@ function StatusCard({
   return (
     <div className="rounded-lg border border-aqua-border bg-aqua-surface-2/40 px-3 py-2">
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-aqua-text-muted">
-        <span className={toneClass} aria-hidden>{icon}</span>
+        <span className={toneClass} aria-hidden>
+          {icon}
+        </span>
         {label}
       </div>
       <div className={`mt-0.5 font-tabular text-base font-semibold capitalize ${toneClass}`}>
@@ -379,7 +389,11 @@ function DosingResponseList({ responses }: { responses: ReadonlyArray<DosingResp
             )}
           </div>
           <time className="font-tabular text-[10px] text-aqua-text-muted shrink-0">
-            {new Date(ev.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            {new Date(ev.t).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
           </time>
         </li>
       ))}
@@ -390,18 +404,27 @@ function DosingResponseList({ responses }: { responses: ReadonlyArray<DosingResp
 function ResultIcon({ kind }: { kind: DosingResponse["resultado"] }) {
   if (kind === "ok")
     return (
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-ok/15 text-status-ok" aria-hidden>
+      <span
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-ok/15 text-status-ok"
+        aria-hidden
+      >
         <CheckCircle2 className="h-3 w-3" />
       </span>
     );
   if (kind === "bloqueado")
     return (
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-warn/15 text-status-warn" aria-hidden>
+      <span
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-warn/15 text-status-warn"
+        aria-hidden
+      >
         <CircleDot className="h-3 w-3" />
       </span>
     );
   return (
-    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-crit/15 text-status-crit" aria-hidden>
+    <span
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-status-crit/15 text-status-crit"
+      aria-hidden
+    >
       <TriangleAlert className="h-3 w-3" />
     </span>
   );
@@ -415,9 +438,7 @@ function ResultBadge({ kind }: { kind: DosingResponse["resultado"] }) {
   } as const;
   const m = map[kind];
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wider ${m.cls}`}>
-      {m.label}
-    </span>
+    <span className={`text-[10px] font-semibold uppercase tracking-wider ${m.cls}`}>{m.label}</span>
   );
 }
 
@@ -492,12 +513,17 @@ function OperationPanel() {
       aria-label="Controle de aquecimento solar"
     >
       <div className="mb-3 flex items-center gap-2">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent" aria-hidden>
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent"
+          aria-hidden
+        >
           <Power className="h-4 w-4" />
         </span>
         <div>
           <h2 className="text-sm font-semibold text-aqua-text">Aquecimento solar</h2>
-          <p className="text-[11px] text-aqua-text-muted">Bomba de circulação · modo, estado e histerese ΔT</p>
+          <p className="text-[11px] text-aqua-text-muted">
+            Bomba de circulação · modo, estado e histerese ΔT
+          </p>
         </div>
       </div>
 
@@ -546,7 +572,9 @@ function OperationPanel() {
         />
       </div>
       {!brokerConnected && (
-        <p className="mt-1 text-[11px] text-status-warn">Sem conexão MQTT — troca de modo indisponível.</p>
+        <p className="mt-1 text-[11px] text-status-warn">
+          Sem conexão MQTT — troca de modo indisponível.
+        </p>
       )}
 
       {/* Estado da bomba */}
@@ -572,15 +600,18 @@ function OperationPanel() {
               <Power className="h-4 w-4" />
             </div>
             <div>
-              <div className="text-sm font-semibold">{bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}</div>
+              <div className="text-sm font-semibold">
+                {bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}
+              </div>
               <div className="text-[10px] text-aqua-text-muted">
-                {canChange ? "Pronta para próximo acionamento" : `Anti-cycling: ${Math.ceil(remaining)}s`}
+                {canChange
+                  ? "Pronta para próximo acionamento"
+                  : `Anti-cycling: ${Math.ceil(remaining)}s`}
               </div>
             </div>
           </div>
           {!canChange && <CountdownRing seconds={Math.ceil(remaining)} />}
         </div>
-
       </div>
 
       {/* Histerese ΔT */}
@@ -589,9 +620,18 @@ function OperationPanel() {
           Histerese ΔT
         </h3>
         <div className="relative h-8 overflow-hidden rounded-full border border-aqua-border bg-aqua-bg">
-          <div className="absolute inset-y-0 left-0 bg-status-ok/30" style={{ width: `${(6 / 25) * 100}%` }} />
-          <div className="absolute inset-y-0 bg-status-warn/25" style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }} />
-          <div className="absolute inset-y-0 bg-aqua-accent/30" style={{ left: `${(10 / 25) * 100}%`, right: 0 }} />
+          <div
+            className="absolute inset-y-0 left-0 bg-status-ok/30"
+            style={{ width: `${(6 / 25) * 100}%` }}
+          />
+          <div
+            className="absolute inset-y-0 bg-status-warn/25"
+            style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }}
+          />
+          <div
+            className="absolute inset-y-0 bg-aqua-accent/30"
+            style={{ left: `${(10 / 25) * 100}%`, right: 0 }}
+          />
           <div
             ref={dtMarkerRef}
             className="absolute top-0 h-full w-1 rounded shadow-lg"
@@ -616,7 +656,10 @@ function OperationPanel() {
         </h3>
         <ul className="space-y-1">
           {log.slice(0, 4).map((e, i) => (
-            <li key={`${e.t}-${i}`} className="flex items-start gap-2 rounded-lg bg-aqua-surface-2/40 p-2 text-xs">
+            <li
+              key={`${e.t}-${i}`}
+              className="flex items-start gap-2 rounded-lg bg-aqua-surface-2/40 p-2 text-xs"
+            >
               <span
                 className={cn(
                   "mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
@@ -625,13 +668,19 @@ function OperationPanel() {
               />
               <div className="flex-1">
                 <div className="font-tabular text-aqua-text">
-                  {new Date(e.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
+                  {new Date(e.t).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
                 </div>
                 <div className="text-aqua-text-muted">{e.motivo}</div>
               </div>
             </li>
           ))}
-          {log.length === 0 && <li className="text-[11px] text-aqua-text-muted">Sem acionamentos.</li>}
+          {log.length === 0 && (
+            <li className="text-[11px] text-aqua-text-muted">Sem acionamentos.</li>
+          )}
         </ul>
       </div>
 
@@ -641,7 +690,9 @@ function OperationPanel() {
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
             Temperatura alvo
           </h3>
-          <span className="font-tabular text-base font-semibold text-aqua-accent">{setpoint}°C</span>
+          <span className="font-tabular text-base font-semibold text-aqua-accent">
+            {setpoint}°C
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -713,8 +764,12 @@ function CountdownRing({ seconds }: { seconds: number }) {
       <svg viewBox="0 0 40 40" className="h-full w-full -rotate-90">
         <circle cx="20" cy="20" r="18" fill="none" stroke="var(--aqua-border)" strokeWidth="3" />
         <circle
-          cx="20" cy="20" r="18" fill="none"
-          stroke="var(--status-warn)" strokeWidth="3"
+          cx="20"
+          cy="20"
+          r="18"
+          fill="none"
+          stroke="var(--status-warn)"
+          strokeWidth="3"
           strokeDasharray="113"
           strokeDashoffset={dash}
           strokeLinecap="round"
@@ -799,18 +854,29 @@ function DiagnosticsPanel() {
     live && v !== undefined && !isSensorError(v);
 
   const latencyMs = conn.lastMessageAt != null ? Math.max(0, now - conn.lastMessageAt) : null;
-  const lastMsgAgo =
-    latencyMs != null ? `${Math.round(latencyMs / 1000)}s atrás` : "—";
+  const lastMsgAgo = latencyMs != null ? `${Math.round(latencyMs / 1000)}s atrás` : "—";
   const latencyStr =
-    latencyMs == null ? "—" : latencyMs < 1000 ? `${latencyMs}ms` : `${(latencyMs / 1000).toFixed(1)}s`;
+    latencyMs == null
+      ? "—"
+      : latencyMs < 1000
+        ? `${latencyMs}ms`
+        : `${(latencyMs / 1000).toFixed(1)}s`;
   const latencyTone: SensorTone =
     latencyMs == null ? "neutral" : latencyMs > 15000 ? "crit" : latencyMs > 8000 ? "warn" : "ok";
   const uptime = Math.max(0, Math.round((now - conn.providerMountedAt) / 1000));
   const uptimeStr =
-    uptime < 60 ? `${uptime}s` : uptime < 3600 ? `${Math.floor(uptime / 60)}min` : `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}min`;
+    uptime < 60
+      ? `${uptime}s`
+      : uptime < 3600
+        ? `${Math.floor(uptime / 60)}min`
+        : `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}min`;
 
   const totalFailures =
-    sensorFailures.ph + sensorFailures.cloro + sensorFailures.alcalinidade + sensorFailures.piscina + sensorFailures.coletor;
+    sensorFailures.ph +
+    sensorFailures.cloro +
+    sensorFailures.alcalinidade +
+    sensorFailures.piscina +
+    sensorFailures.coletor;
 
   const connTone: SensorTone =
     conn.status === "connected" ? "ok" : conn.status === "connecting" ? "warn" : "crit";
@@ -821,12 +887,17 @@ function DiagnosticsPanel() {
       aria-label="Diagnóstico do sistema"
     >
       <div className="mb-3 flex items-center gap-2">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent" aria-hidden>
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-aqua-accent/10 text-aqua-accent"
+          aria-hidden
+        >
           <Gauge className="h-4 w-4" />
         </span>
         <div>
           <h2 className="text-sm font-semibold text-aqua-text">Diagnóstico</h2>
-          <p className="text-[11px] text-aqua-text-muted">Leituras dos sensores e saúde da conexão</p>
+          <p className="text-[11px] text-aqua-text-muted">
+            Leituras dos sensores e saúde da conexão
+          </p>
         </div>
       </div>
 
@@ -834,28 +905,100 @@ function DiagnosticsPanel() {
         Sensores
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <SensorTile icon={<Droplets className="h-3.5 w-3.5" />} label="pH" value={fmtVal(wq?.ph, "", 2)} tone={statusToTone(wq?.ph_status)} online={sensorOnline(wq?.ph)} failures={sensorFailures.ph} />
-        <SensorTile icon={<FlaskConical className="h-3.5 w-3.5" />} label="Cloro" value={fmtVal(wq?.cloro, " ppm")} tone={statusToTone(wq?.cloro_status)} online={sensorOnline(wq?.cloro)} failures={sensorFailures.cloro} />
-        <SensorTile icon={<Beaker className="h-3.5 w-3.5" />} label="Alcalinidade" value={fmtVal(wq?.alcalinidade, " ppm", 0)} tone={statusToTone(wq?.alcalinidade_status)} online={sensorOnline(wq?.alcalinidade)} failures={sensorFailures.alcalinidade} />
-        <SensorTile icon={<Waves className="h-3.5 w-3.5" />} label="Piscina" value={fmtVal(tp?.piscina_C, "°C")} tone="neutral" online={sensorOnline(tp?.piscina_C)} failures={sensorFailures.piscina} />
-        <SensorTile icon={<Sun className="h-3.5 w-3.5" />} label="Coletor" value={fmtVal(tp?.coletor_solar_C, "°C")} tone="neutral" online={sensorOnline(tp?.coletor_solar_C)} failures={sensorFailures.coletor} />
-        <SensorTile icon={<Thermometer className="h-3.5 w-3.5" />} label="ΔT" value={fmtVal(tp?.delta_T, "°C")} tone="neutral" online={sensorOnline(tp?.delta_T)} />
+        <SensorTile
+          icon={<Droplets className="h-3.5 w-3.5" />}
+          label="pH"
+          value={fmtVal(wq?.ph, "", 2)}
+          tone={statusToTone(wq?.ph_status)}
+          online={sensorOnline(wq?.ph)}
+          failures={sensorFailures.ph}
+        />
+        <SensorTile
+          icon={<FlaskConical className="h-3.5 w-3.5" />}
+          label="Cloro"
+          value={fmtVal(wq?.cloro, " ppm")}
+          tone={statusToTone(wq?.cloro_status)}
+          online={sensorOnline(wq?.cloro)}
+          failures={sensorFailures.cloro}
+        />
+        <SensorTile
+          icon={<Beaker className="h-3.5 w-3.5" />}
+          label="Alcalinidade"
+          value={fmtVal(wq?.alcalinidade, " ppm", 0)}
+          tone={statusToTone(wq?.alcalinidade_status)}
+          online={sensorOnline(wq?.alcalinidade)}
+          failures={sensorFailures.alcalinidade}
+        />
+        <SensorTile
+          icon={<Waves className="h-3.5 w-3.5" />}
+          label="Piscina"
+          value={fmtVal(tp?.piscina_C, "°C")}
+          tone="neutral"
+          online={sensorOnline(tp?.piscina_C)}
+          failures={sensorFailures.piscina}
+        />
+        <SensorTile
+          icon={<Sun className="h-3.5 w-3.5" />}
+          label="Coletor"
+          value={fmtVal(tp?.coletor_solar_C, "°C")}
+          tone="neutral"
+          online={sensorOnline(tp?.coletor_solar_C)}
+          failures={sensorFailures.coletor}
+        />
+        <SensorTile
+          icon={<Thermometer className="h-3.5 w-3.5" />}
+          label="ΔT"
+          value={fmtVal(tp?.delta_T, "°C")}
+          tone="neutral"
+          online={sensorOnline(tp?.delta_T)}
+        />
       </div>
 
       <h3 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
         Conexão MQTT
       </h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <SensorTile icon={<Radio className="h-3.5 w-3.5" />} label="Status" value={conn.status} tone={connTone} />
-        <SensorTile icon={<Database className="h-3.5 w-3.5" />} label="Fonte" value={conn.source} tone={conn.source === "mqtt" ? "ok" : conn.source === "fallback" ? "warn" : "neutral"} />
-        <SensorTile icon={<CircleDot className="h-3.5 w-3.5" />} label="Ciclo" value={conn.cycle != null ? String(conn.cycle) : "—"} tone="neutral" />
-        <SensorTile icon={<Activity className="h-3.5 w-3.5" />} label="Mensagens" value={String(conn.messagesReceivedCount)} tone="neutral" />
-        <SensorTile icon={<TriangleAlert className="h-3.5 w-3.5" />} label="Falhas sensor" value={String(totalFailures)} tone={totalFailures > 0 ? "warn" : "ok"} />
-        <SensorTile icon={<Clock className="h-3.5 w-3.5" />} label="Latência" value={latencyStr} tone={latencyTone} />
+        <SensorTile
+          icon={<Radio className="h-3.5 w-3.5" />}
+          label="Status"
+          value={conn.status}
+          tone={connTone}
+        />
+        <SensorTile
+          icon={<Database className="h-3.5 w-3.5" />}
+          label="Fonte"
+          value={conn.source}
+          tone={conn.source === "mqtt" ? "ok" : conn.source === "fallback" ? "warn" : "neutral"}
+        />
+        <SensorTile
+          icon={<CircleDot className="h-3.5 w-3.5" />}
+          label="Ciclo"
+          value={conn.cycle != null ? String(conn.cycle) : "—"}
+          tone="neutral"
+        />
+        <SensorTile
+          icon={<Activity className="h-3.5 w-3.5" />}
+          label="Mensagens"
+          value={String(conn.messagesReceivedCount)}
+          tone="neutral"
+        />
+        <SensorTile
+          icon={<TriangleAlert className="h-3.5 w-3.5" />}
+          label="Falhas sensor"
+          value={String(totalFailures)}
+          tone={totalFailures > 0 ? "warn" : "ok"}
+        />
+        <SensorTile
+          icon={<Clock className="h-3.5 w-3.5" />}
+          label="Latência"
+          value={latencyStr}
+          tone={latencyTone}
+        />
       </div>
 
       <div className="mt-2 text-[10px] text-aqua-text-muted">
-        Última mensagem {lastMsgAgo} · gaps de ciclo: {conn.totalGaps} · sessão ativa há {uptimeStr} · valor de erro de sensor: {SENSOR_ERROR_VALUE}
+        Última mensagem {lastMsgAgo} · gaps de ciclo: {conn.totalGaps} · sessão ativa há {uptimeStr}{" "}
+        · valor de erro de sensor: {SENSOR_ERROR_VALUE}
       </div>
 
       <TopicMapSection />
@@ -878,7 +1021,11 @@ function TopicMapSection() {
         aria-expanded={open}
       >
         <div className="flex items-center gap-2">
-          {open ? <ChevronDown className="h-4 w-4 text-aqua-text-muted" /> : <ChevronRight className="h-4 w-4 text-aqua-text-muted" />}
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-aqua-text-muted" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-aqua-text-muted" />
+          )}
           <Database className="h-4 w-4 text-aqua-accent" />
           <h3 className="text-sm font-semibold text-aqua-text">Mapeamento de tópicos MQTT</h3>
         </div>
@@ -905,7 +1052,10 @@ function TopicGroup({ title, entries }: { title: string; entries: readonly Topic
       </h4>
       <ul className="divide-y divide-aqua-border/60 overflow-hidden rounded-lg border border-aqua-border">
         {entries.map((e) => (
-          <li key={`${e.id}-${e.topic}-${e.field ?? ""}`} className="bg-aqua-surface-2/30 px-3 py-2">
+          <li
+            key={`${e.id}-${e.topic}-${e.field ?? ""}`}
+            className="bg-aqua-surface-2/30 px-3 py-2"
+          >
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-aqua-text">{e.label}</span>
               <code className="truncate font-mono text-[10px] text-aqua-accent">{e.topic}</code>
@@ -956,7 +1106,9 @@ function SensorTile({
   return (
     <div className="rounded-lg border border-aqua-border bg-aqua-surface-2/40 px-3 py-2">
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-aqua-text-muted">
-        <span className={toneClass} aria-hidden>{icon}</span>
+        <span className={toneClass} aria-hidden>
+          {icon}
+        </span>
         <span className="truncate">{label}</span>
         {online !== undefined && (
           <span
@@ -975,7 +1127,10 @@ function SensorTile({
           {value}
         </div>
         {failures !== undefined && failures > 0 && (
-          <span className="shrink-0 font-tabular text-[10px] font-medium text-status-warn" title="Falhas de leitura na sessão">
+          <span
+            className="shrink-0 font-tabular text-[10px] font-medium text-status-warn"
+            title="Falhas de leitura na sessão"
+          >
             {failures} falha{failures > 1 ? "s" : ""}
           </span>
         )}

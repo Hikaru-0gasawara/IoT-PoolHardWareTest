@@ -54,7 +54,9 @@ test.describe("Realce ativo dos itens do menu horizontal", () => {
 
   for (const width of [1024, 1280]) {
     for (const item of ITEMS) {
-      test(`@ ${width}px em ${item.to} o item "${item.label}" reflete o estado ativo`, async ({ page }) => {
+      test(`@ ${width}px em ${item.to} o item "${item.label}" reflete o estado ativo`, async ({
+        page,
+      }) => {
         await page.setViewportSize({ width, height: HEIGHT });
         await page.goto(item.to);
 
@@ -69,7 +71,9 @@ test.describe("Realce ativo dos itens do menu horizontal", () => {
         }
       });
 
-      test(`@ ${width}px em ${item.to} o data-active está correto em todos os itens`, async ({ page }) => {
+      test(`@ ${width}px em ${item.to} o data-active está correto em todos os itens`, async ({
+        page,
+      }) => {
         await page.setViewportSize({ width, height: HEIGHT });
         await page.goto(item.to);
 

@@ -6,7 +6,6 @@
 
 export type ParameterKey = "ph" | "cloro" | "alcalinidade" | "temp_piscina" | "temp_coletor";
 
-
 export type StatusLevel = "ok" | "warn" | "crit";
 
 export type PumpMode = "automatico" | "manual" | "parado";
@@ -20,7 +19,6 @@ export interface SensorPoint {
   temp_coletor: number;
   bomba_ligada: boolean;
 }
-
 
 export interface PumpEvent {
   t: number;

@@ -25,10 +25,21 @@ export function IntroScreen() {
     if (introDecided) return;
     introDecided = true;
     let seen = true;
-    try { seen = sessionStorage.getItem(SS_KEY) === "1"; } catch { seen = false; }
-    if (seen) { setDone(true); return; }
+    try {
+      seen = sessionStorage.getItem(SS_KEY) === "1";
+    } catch {
+      seen = false;
+    }
+    if (seen) {
+      setDone(true);
+      return;
+    }
     setDone(false);
-    try { sessionStorage.setItem(SS_KEY, "1"); } catch {}
+    try {
+      sessionStorage.setItem(SS_KEY, "1");
+    } catch {
+      /* sessionStorage indisponível (modo privado) */
+    }
   }, []);
 
   useEffect(() => {
@@ -107,7 +118,10 @@ export function IntroScreen() {
 
     const hold = FILL_MS + 1600;
     const exitId = window.setTimeout(() => {
-      if (!rootRef.current) { setDone(true); return; }
+      if (!rootRef.current) {
+        setDone(true);
+        return;
+      }
       animate(rootRef.current, {
         opacity: [1, 0],
         duration: 500,
@@ -117,7 +131,7 @@ export function IntroScreen() {
     }, hold);
     clear.push(() => window.clearTimeout(exitId));
 
-    return () => clear.forEach(fn => fn());
+    return () => clear.forEach((fn) => fn());
   }, [done]);
 
   if (done) return null;

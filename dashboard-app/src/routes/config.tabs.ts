@@ -19,8 +19,7 @@ export const CONFIG_TABS: readonly ConfigTabDef[] = [
 // Aba padrão ao abrir /config (primeira da ordem canônica).
 export const DEFAULT_CONFIG_TAB: ConfigTab = CONFIG_TABS[0].value;
 
-export const isConfigTab = (v: unknown): v is ConfigTab =>
-  CONFIG_TABS.some((t) => t.value === v);
+export const isConfigTab = (v: unknown): v is ConfigTab => CONFIG_TABS.some((t) => t.value === v);
 
 // ---------------------------------------------------------------------------
 // Deep links: /config?tab=<aba>
@@ -37,9 +36,6 @@ export function parseTabParam(raw: unknown): ConfigTab | null {
 //   1) deep link na URL (?tab=) — sempre vence (compartilhar/refresh com link)
 //   2) última aba persistida em localStorage
 //   3) aba padrão (Controle Avançado)
-export function resolveInitialTab(
-  searchTab: unknown,
-  storedTab: unknown,
-): ConfigTab {
+export function resolveInitialTab(searchTab: unknown, storedTab: unknown): ConfigTab {
   return parseTabParam(searchTab) ?? parseTabParam(storedTab) ?? DEFAULT_CONFIG_TAB;
 }

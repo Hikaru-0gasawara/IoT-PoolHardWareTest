@@ -44,7 +44,11 @@ export function AnimatedNumber({ value, decimals, className }: Props) {
   }, [value, decimals]);
 
   return (
-    <span ref={ref} className={className} style={{ display: "inline-block", willChange: "transform" }}>
+    <span
+      ref={ref}
+      className={className}
+      style={{ display: "inline-block", willChange: "transform" }}
+    >
       {value.toFixed(decimals)}
     </span>
   );

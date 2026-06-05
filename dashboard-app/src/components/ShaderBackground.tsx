@@ -85,13 +85,13 @@ void main() {
 const PALETTE = {
   dark: {
     bg: [0.06, 0.09, 0.14] as const,
-    mid: [0.10, 0.15, 0.22] as const,
+    mid: [0.1, 0.15, 0.22] as const,
     accent: [0.0, 0.71, 0.85] as const,
   },
   "dark-black": {
-    bg: [0.08, 0.09, 0.08] as const,     /* grafite quase preto, traço verde */
+    bg: [0.08, 0.09, 0.08] as const /* grafite quase preto, traço verde */,
     mid: [0.13, 0.15, 0.13] as const,
-    accent: [0.42, 0.82, 0.60] as const, /* verde-menta */
+    accent: [0.42, 0.82, 0.6] as const /* verde-menta */,
   },
   light: {
     bg: [0.95, 0.965, 0.985] as const,
@@ -152,7 +152,11 @@ export function ShaderBackground({ opacity = 0.6, className }: Props) {
 
     function applyPalette() {
       const cls = document.documentElement.classList;
-      const key = cls.contains("light") ? "light" : cls.contains("dark-black") ? "dark-black" : "dark";
+      const key = cls.contains("light")
+        ? "light"
+        : cls.contains("dark-black")
+          ? "dark-black"
+          : "dark";
       const pal = PALETTE[key];
       gl!.uniform3fv(uBg, pal.bg as unknown as number[]);
       gl!.uniform3fv(uMid, pal.mid as unknown as number[]);

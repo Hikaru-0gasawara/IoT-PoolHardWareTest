@@ -20,10 +20,16 @@ const GRUPOS: Grupo[] = [
     icon: Search,
     intent: "ConsultarParametroIntent · ConsultarTemperaturaIntent",
     comandos: [
-      { fala: "Alexa, pergunte ao monitor da piscina qual o pH", resposta: "Informa o pH e se está dentro da faixa ABNT (7,2–7,6)." },
+      {
+        fala: "Alexa, pergunte ao monitor da piscina qual o pH",
+        resposta: "Informa o pH e se está dentro da faixa ABNT (7,2–7,6).",
+      },
       { fala: "…quanto está o cloro", resposta: "Cloro em ppm, faixa ideal 1,0–3,0." },
       { fala: "…qual a alcalinidade", resposta: "Alcalinidade em ppm, faixa ideal 80–120." },
-      { fala: "…qual a temperatura da piscina", resposta: "Temperatura da piscina, do coletor e o ΔT." },
+      {
+        fala: "…qual a temperatura da piscina",
+        resposta: "Temperatura da piscina, do coletor e o ΔT.",
+      },
     ],
   },
   {
@@ -31,7 +37,10 @@ const GRUPOS: Grupo[] = [
     icon: MessageSquareQuote,
     intent: "ResumoIntent · StatusBombaIntent",
     comandos: [
-      { fala: "Alexa, peça ao monitor da piscina um resumo", resposta: "pH, cloro, alcalinidade, temperatura, bomba e alertas ativos." },
+      {
+        fala: "Alexa, peça ao monitor da piscina um resumo",
+        resposta: "pH, cloro, alcalinidade, temperatura, bomba e alertas ativos.",
+      },
       { fala: "…a bomba está ligada?", resposta: "Estado da bomba do coletor e o ΔT atual." },
     ],
   },
@@ -40,7 +49,10 @@ const GRUPOS: Grupo[] = [
     icon: Beaker,
     intent: "DosarIntent → dosagem/comando",
     comandos: [
-      { fala: "Alexa, peça ao monitor da piscina para dosar cloro", resposta: "Confirma e publica o comando de dosagem (cloro, ácido ou base)." },
+      {
+        fala: "Alexa, peça ao monitor da piscina para dosar cloro",
+        resposta: "Confirma e publica o comando de dosagem (cloro, ácido ou base).",
+      },
     ],
   },
   {
@@ -48,7 +60,10 @@ const GRUPOS: Grupo[] = [
     icon: SlidersHorizontal,
     intent: "DefinirModoIntent → controle/modo",
     comandos: [
-      { fala: "Alexa, peça ao monitor da piscina para ativar o modo automático", resposta: "Altera o modo: automático, manual ou parada de emergência." },
+      {
+        fala: "Alexa, peça ao monitor da piscina para ativar o modo automático",
+        resposta: "Altera o modo: automático, manual ou parada de emergência.",
+      },
     ],
   },
 ];
@@ -66,14 +81,22 @@ export function AlexaIntegration() {
             <h2 className="font-semibold text-aqua-text">Skill Alexa “monitor da piscina”</h2>
             <p className="mt-1 text-sm text-aqua-text-muted">
               A skill (pt-BR) usa a mesma ponte MQTT do painel: lê o snapshot retido em{" "}
-              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">.../dados</code> para
-              consultas e publica em{" "}
-              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">.../dosagem/comando</code> e{" "}
-              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">.../controle/modo</code> para
-              comandos. Faixas e sentinela de erro de sensor são idênticas às do dashboard.
+              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">
+                .../dados
+              </code>{" "}
+              para consultas e publica em{" "}
+              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">
+                .../dosagem/comando
+              </code>{" "}
+              e{" "}
+              <code className="rounded bg-aqua-surface-2 px-1 py-0.5 text-xs text-aqua-text">
+                .../controle/modo
+              </code>{" "}
+              para comandos. Faixas e sentinela de erro de sensor são idênticas às do dashboard.
             </p>
             <p className="mt-2 text-xs text-aqua-text-muted">
-              Invocação: <span className="font-medium text-aqua-text">“abrir monitor da piscina”</span>.
+              Invocação:{" "}
+              <span className="font-medium text-aqua-text">“abrir monitor da piscina”</span>.
             </p>
           </div>
         </div>
@@ -85,7 +108,9 @@ export function AlexaIntegration() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-aqua-surface-2 text-aqua-accent">
             <Settings className="h-4 w-4" />
           </span>
-          <h3 className="text-sm font-semibold text-aqua-text">Configuração da skill (config.js)</h3>
+          <h3 className="text-sm font-semibold text-aqua-text">
+            Configuração da skill (config.js)
+          </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -99,28 +124,40 @@ export function AlexaIntegration() {
             <tbody className="text-aqua-text">
               <tr className="border-b border-aqua-border/50">
                 <td className="py-2 pr-4 font-mono text-xs">MQTT_URL</td>
-                <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">wss://broker.hivemq.com:8884/mqtt</td>
-                <td className="py-2 text-xs text-aqua-text-muted">URL do broker MQTT (WebSocket)</td>
+                <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">
+                  wss://broker.hivemq.com:8884/mqtt
+                </td>
+                <td className="py-2 text-xs text-aqua-text-muted">
+                  URL do broker MQTT (WebSocket)
+                </td>
               </tr>
               <tr className="border-b border-aqua-border/50">
                 <td className="py-2 pr-4 font-mono text-xs">MQTT_USERNAME</td>
                 <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">—</td>
-                <td className="py-2 text-xs text-aqua-text-muted">Usuário para autenticação no broker</td>
+                <td className="py-2 text-xs text-aqua-text-muted">
+                  Usuário para autenticação no broker
+                </td>
               </tr>
               <tr className="border-b border-aqua-border/50">
                 <td className="py-2 pr-4 font-mono text-xs">MQTT_PASSWORD</td>
                 <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">—</td>
-                <td className="py-2 text-xs text-aqua-text-muted">Senha para autenticação no broker</td>
+                <td className="py-2 text-xs text-aqua-text-muted">
+                  Senha para autenticação no broker
+                </td>
               </tr>
               <tr className="border-b border-aqua-border/50">
                 <td className="py-2 pr-4 font-mono text-xs">NAMESPACE</td>
-                <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">aquasense-ibmec-pt</td>
+                <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">
+                  aquasense-ibmec-pt
+                </td>
                 <td className="py-2 text-xs text-aqua-text-muted">Prefixo dos tópicos MQTT</td>
               </tr>
               <tr>
                 <td className="py-2 pr-4 font-mono text-xs">TIMEOUT_MS</td>
                 <td className="py-2 pr-4 font-mono text-xs text-aqua-text-muted">4500</td>
-                <td className="py-2 text-xs text-aqua-text-muted">Timeout de conexão/operação (ms)</td>
+                <td className="py-2 text-xs text-aqua-text-muted">
+                  Timeout de conexão/operação (ms)
+                </td>
               </tr>
             </tbody>
           </table>
@@ -132,7 +169,10 @@ export function AlexaIntegration() {
         {GRUPOS.map((g) => {
           const Icon = g.icon;
           return (
-            <section key={g.titulo} className="rounded-2xl border border-aqua-border bg-aqua-surface p-5">
+            <section
+              key={g.titulo}
+              className="rounded-2xl border border-aqua-border bg-aqua-surface p-5"
+            >
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-aqua-surface-2 text-aqua-accent">
                   <Icon className="h-4 w-4" />
@@ -144,7 +184,10 @@ export function AlexaIntegration() {
               </div>
               <ul className="space-y-3">
                 {g.comandos.map((c) => (
-                  <li key={c.fala} className="rounded-lg border border-aqua-border bg-aqua-bg/40 p-3">
+                  <li
+                    key={c.fala}
+                    className="rounded-lg border border-aqua-border bg-aqua-bg/40 p-3"
+                  >
                     <p className="text-sm font-medium text-aqua-text">“{c.fala}”</p>
                     <p className="mt-1 text-xs text-aqua-text-muted">{c.resposta}</p>
                   </li>

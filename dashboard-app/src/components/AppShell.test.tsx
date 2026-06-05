@@ -6,8 +6,11 @@ let mockPathname = "/";
 
 vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: mockPathname }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Link: ({ children, ...props }: any) => (
-    <a {...props} href={props.to ?? "#"}>{children}</a>
+    <a {...props} href={props.to ?? "#"}>
+      {children}
+    </a>
   ),
 }));
 

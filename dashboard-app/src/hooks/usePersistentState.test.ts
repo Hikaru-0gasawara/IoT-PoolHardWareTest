@@ -28,9 +28,7 @@ describe("usePersistentState", () => {
   it("2) hidrata do localStorage após mount", () => {
     window.localStorage.setItem(KEY, JSON.stringify("persisted"));
 
-    const { result } = renderHook(() =>
-      usePersistentState<string>(KEY, "default"),
-    );
+    const { result } = renderHook(() => usePersistentState<string>(KEY, "default"));
 
     // Após mount + flush dos effects, o valor já é o do LS.
     expect(result.current[0]).toBe("persisted");
@@ -49,9 +47,7 @@ describe("usePersistentState", () => {
   });
 
   it("3b) após hidratar, setState grava no LS normalmente", () => {
-    const { result } = renderHook(() =>
-      usePersistentState<string>(KEY, "default"),
-    );
+    const { result } = renderHook(() => usePersistentState<string>(KEY, "default"));
 
     act(() => {
       result.current[1]("novo");
@@ -67,12 +63,9 @@ describe("usePersistentState", () => {
     // sem quebrar.
     window.localStorage.setItem(KEY, JSON.stringify("legacy-value"));
     type Range = "24h" | "7d" | "30d";
-    const isRange = (v: unknown): v is Range =>
-      v === "24h" || v === "7d" || v === "30d";
+    const isRange = (v: unknown): v is Range => v === "24h" || v === "7d" || v === "30d";
 
-    const { result } = renderHook(() =>
-      usePersistentState<Range>(KEY, "24h", isRange),
-    );
+    const { result } = renderHook(() => usePersistentState<Range>(KEY, "24h", isRange));
 
     expect(result.current[0]).toBe("24h");
   });
@@ -80,12 +73,9 @@ describe("usePersistentState", () => {
   it("4b) validate aceita valores válidos do LS", () => {
     window.localStorage.setItem(KEY, JSON.stringify("7d"));
     type Range = "24h" | "7d" | "30d";
-    const isRange = (v: unknown): v is Range =>
-      v === "24h" || v === "7d" || v === "30d";
+    const isRange = (v: unknown): v is Range => v === "24h" || v === "7d" || v === "30d";
 
-    const { result } = renderHook(() =>
-      usePersistentState<Range>(KEY, "24h", isRange),
-    );
+    const { result } = renderHook(() => usePersistentState<Range>(KEY, "24h", isRange));
 
     expect(result.current[0]).toBe("7d");
   });
@@ -93,9 +83,7 @@ describe("usePersistentState", () => {
   it("tolera JSON corrompido sem lançar", () => {
     window.localStorage.setItem(KEY, "{not json");
 
-    const { result } = renderHook(() =>
-      usePersistentState<string>(KEY, "fallback"),
-    );
+    const { result } = renderHook(() => usePersistentState<string>(KEY, "fallback"));
 
     expect(result.current[0]).toBe("fallback");
   });

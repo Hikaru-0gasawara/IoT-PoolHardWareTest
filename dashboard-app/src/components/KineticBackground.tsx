@@ -40,7 +40,16 @@ export function KineticBackground({
     const secondary = styles.getPropertyValue("--aqua-secondary").trim() || "oklch(0.55 0.09 220)";
     const palette = [accent, secondary, accent];
 
-    type P = { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; width: number };
+    type P = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      max: number;
+      color: string;
+      width: number;
+    };
     let particles: P[] = [];
 
     type Ring = { x: number; y: number; r: number; maxR: number; alpha: number };
@@ -104,8 +113,11 @@ export function KineticBackground({
 
       // Sonar rings — pulse from center, fade as they expand.
       ringTimer++;
-      if (ringTimer >= RING_INTERVAL) { ringTimer = 0; spawnRing(); }
-      rings = rings.filter(ring => {
+      if (ringTimer >= RING_INTERVAL) {
+        ringTimer = 0;
+        spawnRing();
+      }
+      rings = rings.filter((ring) => {
         ring.r += (ring.maxR - ring.r) * 0.04; // ease-out expansion
         ring.alpha *= 0.965;
         if (ring.alpha < 0.008) return false;
@@ -149,11 +161,7 @@ export function KineticBackground({
         p.y = ny;
         p.life += 1;
 
-        if (
-          p.life > p.max ||
-          p.x < -50 || p.x > w + 50 ||
-          p.y < -50 || p.y > h + 50
-        ) {
+        if (p.life > p.max || p.x < -50 || p.x > w + 50 || p.y < -50 || p.y > h + 50) {
           Object.assign(p, spawn());
           p.life = 0;
         }

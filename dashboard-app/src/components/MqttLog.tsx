@@ -26,8 +26,17 @@ export function MqttLog() {
         aria-expanded={open}
       >
         <div className="flex items-center gap-2">
-          {open ? <ChevronDown className="h-4 w-4 text-aqua-text-muted" /> : <ChevronRight className="h-4 w-4 text-aqua-text-muted" />}
-          <Radio className={cn("h-4 w-4", status === "connected" ? "text-status-ok" : "text-status-crit")} />
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-aqua-text-muted" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-aqua-text-muted" />
+          )}
+          <Radio
+            className={cn(
+              "h-4 w-4",
+              status === "connected" ? "text-status-ok" : "text-status-crit",
+            )}
+          />
           <h3 className="text-sm font-semibold text-aqua-text">Log MQTT</h3>
           <span className="text-[10px] uppercase tracking-wider text-aqua-text-muted">
             {log.length}/50 mensagens · {source}
@@ -39,7 +48,9 @@ export function MqttLog() {
       {open && (
         <div className="max-h-80 overflow-y-auto border-t border-aqua-border bg-aqua-bg/40 px-3 py-2 font-mono text-[11px] leading-relaxed">
           {log.length === 0 ? (
-            <div className="py-6 text-center text-aqua-text-muted">Aguardando mensagens do broker…</div>
+            <div className="py-6 text-center text-aqua-text-muted">
+              Aguardando mensagens do broker…
+            </div>
           ) : (
             <ul className="space-y-1">
               {log.map((m, i) => (

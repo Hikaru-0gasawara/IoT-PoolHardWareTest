@@ -76,7 +76,9 @@ export function HeatingControl() {
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Modo da bomba</h3>
+            <h3 className="text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+              Modo da bomba
+            </h3>
             <ControlInfoPopover />
           </div>
           <div
@@ -84,10 +86,14 @@ export function HeatingControl() {
             aria-label="Modo da bomba de aquecimento"
             className="flex gap-1 rounded-full border border-aqua-border bg-aqua-bg/60 p-1.5"
           >
-            {([
-              { key: "automatico" as PumpMode, label: "Automático", icon: <Bot className="h-4 w-4" /> },
+            {[
+              {
+                key: "automatico" as PumpMode,
+                label: "Automático",
+                icon: <Bot className="h-4 w-4" />,
+              },
               { key: "parado" as PumpMode, label: "Parado", icon: <Ban className="h-4 w-4" /> },
-            ]).map((m) => {
+            ].map((m) => {
               const active = modo === m.key;
               const isDanger = m.key === "parado";
               return (
@@ -121,7 +127,9 @@ export function HeatingControl() {
               : "Histerese ΔT 5°C / 1°C · anti-cycling 60s."}
           </p>
           {!brokerConnected && (
-            <p className="mt-1 text-[11px] text-status-warn">Sem conexão MQTT — troca de modo indisponível.</p>
+            <p className="mt-1 text-[11px] text-status-warn">
+              Sem conexão MQTT — troca de modo indisponível.
+            </p>
           )}
         </div>
 
@@ -140,7 +148,9 @@ export function HeatingControl() {
         )}
 
         <div>
-          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Bomba</h3>
+          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Bomba
+          </h3>
           <div
             className={cn(
               "relative flex w-full items-center justify-between rounded-xl border-2 p-4",
@@ -159,26 +169,40 @@ export function HeatingControl() {
                 <Power className="h-5 w-5" />
               </div>
               <div className="text-left">
-                <div className="text-base font-semibold">{bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}</div>
+                <div className="text-base font-semibold">
+                  {bombaOn ? "BOMBA LIGADA" : "BOMBA DESLIGADA"}
+                </div>
                 <div className="text-xs text-aqua-text-muted">
-                  {canChange ? "Pronta para próximo acionamento" : `Anti-cycling: ${Math.ceil(remaining)}s`}
+                  {canChange
+                    ? "Pronta para próximo acionamento"
+                    : `Anti-cycling: ${Math.ceil(remaining)}s`}
                 </div>
               </div>
             </div>
             {!canChange && <CountdownRing seconds={Math.ceil(remaining)} />}
           </div>
-
         </div>
       </div>
 
       {/* Histerese + log */}
       <div className="space-y-5 rounded-2xl border border-aqua-border bg-aqua-surface p-5">
         <div>
-          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Histerese ΔT</h3>
+          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Histerese ΔT
+          </h3>
           <div className="relative h-9 overflow-hidden rounded-full border border-aqua-border bg-aqua-bg">
-            <div className="absolute inset-y-0 left-0 bg-status-ok/30" style={{ width: `${(6 / 25) * 100}%` }} />
-            <div className="absolute inset-y-0 bg-status-warn/25" style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }} />
-            <div className="absolute inset-y-0 bg-aqua-accent/30" style={{ left: `${(10 / 25) * 100}%`, right: 0 }} />
+            <div
+              className="absolute inset-y-0 left-0 bg-status-ok/30"
+              style={{ width: `${(6 / 25) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 bg-status-warn/25"
+              style={{ left: `${(6 / 25) * 100}%`, width: `${(4 / 25) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 bg-aqua-accent/30"
+              style={{ left: `${(10 / 25) * 100}%`, right: 0 }}
+            />
             <div
               ref={dtMarkerRef}
               className="absolute top-0 h-full w-1 rounded shadow-lg"
@@ -197,18 +221,28 @@ export function HeatingControl() {
         </div>
 
         <div>
-          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">Acionamentos recentes</h3>
+          <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-aqua-text-muted">
+            Acionamentos recentes
+          </h3>
           <ul className="space-y-1.5 text-xs">
             {log.slice(0, 5).map((e, i) => (
-              <li key={`${e.t}-${i}`} className="flex items-start gap-2 rounded-lg bg-aqua-surface-2 p-2">
+              <li
+                key={`${e.t}-${i}`}
+                className="flex items-start gap-2 rounded-lg bg-aqua-surface-2 p-2"
+              >
                 <span
-                  className={cn("mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                  className={cn(
+                    "mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
                     e.ligada ? "bg-flow" : "bg-aqua-text-muted",
                   )}
                 />
                 <div className="flex-1">
                   <div className="font-tabular text-aqua-text">
-                    {new Date(e.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
+                    {new Date(e.t).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    — Bomba {e.ligada ? "LIGADA" : "DESLIGADA"}
                   </div>
                   <div className="text-aqua-text-muted">{e.motivo}</div>
                 </div>
@@ -230,8 +264,12 @@ function CountdownRing({ seconds }: { seconds: number }) {
       <svg viewBox="0 0 40 40" className="h-full w-full -rotate-90">
         <circle cx="20" cy="20" r="18" fill="none" stroke="var(--aqua-border)" strokeWidth="3" />
         <circle
-          cx="20" cy="20" r="18" fill="none"
-          stroke="var(--status-warn)" strokeWidth="3"
+          cx="20"
+          cy="20"
+          r="18"
+          fill="none"
+          stroke="var(--status-warn)"
+          strokeWidth="3"
           strokeDasharray="113"
           strokeDashoffset={dash}
           strokeLinecap="round"
@@ -270,11 +308,13 @@ function ControlInfoPopover() {
           <li>Considera apenas ΔT entre piscina e coletor</li>
           <li>Não compensa horário do dia (eficiência solar)</li>
           <li>Não limita por temperatura máxima da piscina</li>
-          <li>Anti-cycling de 60s — em produção real, recomendado 5–10 min para preservar o capacitor</li>
+          <li>
+            Anti-cycling de 60s — em produção real, recomendado 5–10 min para preservar o capacitor
+          </li>
         </ul>
         <p className="text-[11px] leading-relaxed text-aqua-text-muted">
-          Em produto comercial, o algoritmo seria adaptativo (PID com feedback) e
-          consideraria histórico de eficiência por horário do dia.
+          Em produto comercial, o algoritmo seria adaptativo (PID com feedback) e consideraria
+          histórico de eficiência por horário do dia.
         </p>
       </PopoverContent>
     </Popover>

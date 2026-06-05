@@ -30,10 +30,7 @@ function computeReduced(): boolean {
 
 function applyAttr() {
   if (typeof document === "undefined") return;
-  document.documentElement.setAttribute(
-    "data-reduce-motion",
-    computeReduced() ? "true" : "false",
-  );
+  document.documentElement.setAttribute("data-reduce-motion", computeReduced() ? "true" : "false");
 }
 
 function init() {

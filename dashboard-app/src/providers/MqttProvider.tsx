@@ -37,7 +37,12 @@ import {
   isSensorError,
 } from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
-import { MQTT_TOPICS, TOPIC_DOSING_COMMAND, TOPIC_CONTROL_MODE, TOPIC_DOSING_MODE } from "@/lib/mqttTopics";
+import {
+  MQTT_TOPICS,
+  TOPIC_DOSING_COMMAND,
+  TOPIC_CONTROL_MODE,
+  TOPIC_DOSING_MODE,
+} from "@/lib/mqttTopics";
 import {
   type GapDetectorState,
   createGapDetector,
@@ -46,7 +51,7 @@ import {
 } from "@/lib/cycleGaps";
 
 // HiveMQ Cloud (TLS/WSS 8884) — mesmo cluster do firmware (USAR_TLS 1).
-const MQTT_URL      = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_URL = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
 const MQTT_USERNAME = "ProjetoIoT";
 const MQTT_PASSWORD = "IoT12345678";
 const FALLBACK_AFTER_MS = 15_000;
@@ -94,10 +99,7 @@ const numInRange = (min: number, max: number) =>
     });
 
 const DoseChemEnum = z.enum(["cloro", "acido", "base"]);
-const BombaEnum = z.union([
-  z.enum(["ON", "OFF", "LIGADA", "DESLIGADA"]),
-  z.boolean(),
-]);
+const BombaEnum = z.union([z.enum(["ON", "OFF", "LIGADA", "DESLIGADA"]), z.boolean()]);
 
 // ─────────────────────────────────────────────────────────────────────
 // Schema do payload consolidado (aquasense-ibmec-pt/dados, retain).
@@ -142,7 +144,9 @@ export const DosingEventSchema = z
 export const DosingResponseSchema = DosingEventSchema;
 
 // Mapeia o evento do firmware para o resultado exibido na UI.
-function eventoToResultado(evento: "iniciada" | "concluida" | "bloqueada"): DosingResponse["resultado"] {
+function eventoToResultado(
+  evento: "iniciada" | "concluida" | "bloqueada",
+): DosingResponse["resultado"] {
   if (evento === "bloqueada") return "bloqueado";
   return "ok";
 }
@@ -170,8 +174,8 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
     }
     const f = r.data;
     const ph = f.ph;
-    const cloro = (f as Record<string, unknown>).cloro as number | undefined ?? -99;
-    const alcalinidade = (f as Record<string, unknown>).alcalinidade as number | undefined ?? -99;
+    const cloro = ((f as Record<string, unknown>).cloro as number | undefined) ?? -99;
+    const alcalinidade = ((f as Record<string, unknown>).alcalinidade as number | undefined) ?? -99;
     const tPool = f.temp_piscina;
     const tSolar = f.temp_coletor;
     const dT = f.delta_t ?? tSolar - tPool;
@@ -330,7 +334,6 @@ export function MqttProvider({ children }: { children: ReactNode }) {
         piscina: prev.piscina + (isSensorError(tp.piscina_C) ? 1 : 0),
         coletor: prev.coletor + (isSensorError(tp.coletor_solar_C) ? 1 : 0),
       }));
-
 
       usePoolStore.getState().ingestFromMqtt(parsed);
       usePoolStore.getState()._stopSimulation?.();

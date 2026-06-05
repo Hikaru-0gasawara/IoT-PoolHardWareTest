@@ -40,18 +40,36 @@ export function NavItem({ to, label, active, testId }: NavItemProps) {
 
   const handleEnter = () => {
     if (!linkRef.current) return;
-    animate(linkRef.current, { scale: 1.05, duration: MOTION.duration.fast, ease: MOTION.springMicro });
+    animate(linkRef.current, {
+      scale: 1.05,
+      duration: MOTION.duration.fast,
+      ease: MOTION.springMicro,
+    });
     if (!active && barRef.current) {
-      animate(barRef.current, { scaleX: 0.6, opacity: 0.5, duration: MOTION.duration.fast, ease: MOTION.springMicro });
+      animate(barRef.current, {
+        scaleX: 0.6,
+        opacity: 0.5,
+        duration: MOTION.duration.fast,
+        ease: MOTION.springMicro,
+      });
     }
   };
 
   const handleLeave = () => {
     if (linkRef.current) {
-      animate(linkRef.current, { scale: 1, duration: MOTION.duration.fast, ease: MOTION.springMicro });
+      animate(linkRef.current, {
+        scale: 1,
+        duration: MOTION.duration.fast,
+        ease: MOTION.springMicro,
+      });
     }
     if (!active && barRef.current) {
-      animate(barRef.current, { scaleX: 0, opacity: 0, duration: MOTION.duration.fast, ease: MOTION.springMicro });
+      animate(barRef.current, {
+        scaleX: 0,
+        opacity: 0,
+        duration: MOTION.duration.fast,
+        ease: MOTION.springMicro,
+      });
     }
   };
 

@@ -61,7 +61,9 @@ async function shoot(theme) {
   });
   await ctx.route("**/*", serveRoute);
   await ctx.addInitScript((t) => {
-    try { localStorage.setItem("aquasense-theme", t); } catch {}
+    try {
+      localStorage.setItem("aquasense-theme", t);
+    } catch {}
   }, theme);
   const page = await ctx.newPage();
 

@@ -3,11 +3,7 @@ import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { ConfigTabsView } from "@/components/ConfigTabsView";
-import {
-  CONFIG_TABS,
-  DEFAULT_CONFIG_TAB,
-  type ConfigTab,
-} from "@/routes/config.tabs";
+import { CONFIG_TABS, DEFAULT_CONFIG_TAB, type ConfigTab } from "@/routes/config.tabs";
 
 // Teste de integração (E2E em jsdom) da navegação por abas de /config.
 // Renderiza o componente real de abas (Radix) com conteúdos distintos e
@@ -50,27 +46,19 @@ describe("ConfigTabsView — navegação por abas", () => {
     expect(screen.getByText("PAINEL_SOBRE")).toBeInTheDocument();
 
     // Painel ativo corresponde à aba selecionada (aria-selected).
-    expect(screen.getByRole("tab", { name: "Sobre" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: "Sobre" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("abre direto na aba indicada por deep link (value inicial)", () => {
     render(<Harness initial="sobre" />);
     expect(screen.getByText("PAINEL_SOBRE")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Sobre" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: "Sobre" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("a ordem das abas é a mesma fonte (CONFIG_TABS) usada em qualquer viewport", () => {
     render(<Harness initial={DEFAULT_CONFIG_TAB} />);
     const list = screen.getByRole("tablist");
     const triggers = within(list).getAllByRole("tab");
-    expect(triggers.map((t) => t.textContent)).toEqual(
-      CONFIG_TABS.map((t) => t.label),
-    );
+    expect(triggers.map((t) => t.textContent)).toEqual(CONFIG_TABS.map((t) => t.label));
   });
 });

@@ -39,7 +39,9 @@ export function RouteCurtain() {
     prevPath.current = location.pathname;
 
     if (isFirst || !changed || !panel) {
-      return () => { prevPath.current = prevPathSnapshot; };
+      return () => {
+        prevPath.current = prevPathSnapshot;
+      };
     }
 
     const label = labelRef.current;
@@ -122,7 +124,10 @@ export function RouteCurtain() {
     >
       <div
         className="absolute inset-x-0 top-0 h-px"
-        style={{ backgroundColor: "var(--aqua-accent)", boxShadow: "0 0 12px 0 var(--aqua-accent)" }}
+        style={{
+          backgroundColor: "var(--aqua-accent)",
+          boxShadow: "0 0 12px 0 var(--aqua-accent)",
+        }}
       />
       <div
         ref={labelRef}
