@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Droplets, RefreshCw, Settings } from "lucide-react";
+import { Droplets, RefreshCw, Settings, TriangleAlert } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NavItem } from "@/components/NavItem";
@@ -294,17 +294,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center justify-center gap-3 border-b border-status-warn/30 bg-status-warn/10 px-4 py-2 text-xs text-status-warn"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 border-b-2 border-status-warn/50 bg-aqua-surface px-4 py-2.5 text-xs text-aqua-text"
         >
-          <span>
-            Sem conexão com o ESP32 — exibindo simulação local. Os valores voltam ao normal quando o broker responder.
+          <span className="inline-flex items-center gap-2">
+            <TriangleAlert className="h-4 w-4 shrink-0 text-status-warn" aria-hidden />
+            <span>
+              <strong className="font-semibold">Sem conexão com o ESP32</strong>
+              {" "}— exibindo simulação local. Os valores voltam ao normal quando o broker responder.
+            </span>
           </span>
           <button
             type="button"
             onClick={handleReconnect}
-            className="inline-flex items-center gap-1 rounded-md border border-status-warn/40 bg-status-warn/10 px-2 py-0.5 font-medium text-status-warn hover:bg-status-warn/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-warn"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-status-warn/60 px-2.5 py-1 font-semibold text-aqua-text transition-colors hover:bg-status-warn/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-warn"
           >
-            <RefreshCw className="h-3 w-3" aria-hidden /> Tentar reconectar
+            <RefreshCw className="h-3 w-3 text-status-warn" aria-hidden /> Tentar reconectar
           </button>
         </div>
       )}

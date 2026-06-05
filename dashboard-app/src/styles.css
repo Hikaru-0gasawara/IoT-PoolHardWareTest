@@ -171,6 +171,12 @@
   --aqua-text: oklch(0.22 0.04 245);
   --aqua-text-muted: oklch(0.45 0.03 240);
   --flow: oklch(0.58 0.18 250);
+
+  /* Status — versões mais fechadas p/ contraste sobre superfícies claras.
+     O âmbar padrão (L 0.78) "some" no branco; aqui escurece para laranja. */
+  --status-ok: oklch(0.58 0.16 160);
+  --status-warn: oklch(0.62 0.16 65);
+  --status-crit: oklch(0.58 0.22 25);
 }
 
 @layer base {
