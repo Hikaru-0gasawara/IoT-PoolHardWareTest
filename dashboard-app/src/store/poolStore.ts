@@ -196,7 +196,7 @@ interface PersistedSettings {
   bomba_modo: PumpMode;
   dosagem_modo: PumpMode;
   ackedAlerts: string[];
-  theme: "dark" | "light";
+  theme: "dark" | "dark-black" | "light";
 }
 
 function loadSettings(): Partial<PersistedSettings> {

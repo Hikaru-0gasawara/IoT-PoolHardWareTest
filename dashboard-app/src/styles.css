@@ -142,6 +142,40 @@
   --chart-5: var(--param-cond);
 }
 
+/* ESCURO PRETO — quase black com toque azul e acento ciano */
+.dark-black {
+  --background: oklch(0.11 0.025 245);
+  --foreground: oklch(0.96 0.015 220);
+  --card: oklch(0.15 0.03 245);
+  --card-foreground: oklch(0.96 0.015 220);
+  --popover: oklch(0.15 0.03 245);
+  --popover-foreground: oklch(0.96 0.015 220);
+  --primary: oklch(0.76 0.16 220);
+  --primary-foreground: oklch(0.11 0.025 245);
+  --secondary: oklch(0.21 0.04 240);
+  --secondary-foreground: oklch(0.96 0.015 220);
+  --muted: oklch(0.19 0.035 245);
+  --muted-foreground: oklch(0.62 0.02 240);
+  --accent: oklch(0.21 0.04 240);
+  --accent-foreground: oklch(0.96 0.015 220);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 0);
+  --border: oklch(0.24 0.04 240);
+  --input: oklch(0.24 0.04 240);
+  --ring: oklch(0.76 0.16 220);
+
+  --aqua-bg: oklch(0.11 0.025 245);
+  --aqua-surface: oklch(0.15 0.03 245);
+  --aqua-surface-2: oklch(0.19 0.04 245);
+  --aqua-border: oklch(0.24 0.04 240);
+  --aqua-primary: oklch(0.46 0.10 235);
+  --aqua-secondary: oklch(0.55 0.09 220);
+  --aqua-accent: oklch(0.76 0.16 220);         /* #00B4D8 ciano */
+  --aqua-text: oklch(0.96 0.015 220);
+  --aqua-text-muted: oklch(0.62 0.02 240);
+  --flow: oklch(0.66 0.18 250);
+}
+
 .light {
   --background: oklch(0.98 0.005 220);         /* off-white levemente azul */
   --foreground: oklch(0.22 0.04 245);

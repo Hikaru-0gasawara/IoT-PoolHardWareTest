@@ -86,7 +86,12 @@ const PALETTE = {
   dark: {
     bg: [0.06, 0.09, 0.14] as const,
     mid: [0.10, 0.15, 0.22] as const,
-    accent: [0.0, 0.71, 0.85] as const,        /* #00B4D8 ciano */
+    accent: [0.0, 0.71, 0.85] as const,
+  },
+  "dark-black": {
+    bg: [0.03, 0.04, 0.07] as const,
+    mid: [0.07, 0.09, 0.14] as const,
+    accent: [0.0, 0.71, 0.85] as const,
   },
   light: {
     bg: [0.95, 0.965, 0.985] as const,
@@ -146,8 +151,9 @@ export function ShaderBackground({ opacity = 0.6, className }: Props) {
     const uAccent = gl.getUniformLocation(prog, "uAccent");
 
     function applyPalette() {
-      const light = document.documentElement.classList.contains("light");
-      const pal = light ? PALETTE.light : PALETTE.dark;
+      const cls = document.documentElement.classList;
+      const key = cls.contains("light") ? "light" : cls.contains("dark-black") ? "dark-black" : "dark";
+      const pal = PALETTE[key];
       gl!.uniform3fv(uBg, pal.bg as unknown as number[]);
       gl!.uniform3fv(uMid, pal.mid as unknown as number[]);
       gl!.uniform3fv(uAccent, pal.accent as unknown as number[]);
