@@ -8,6 +8,8 @@ import { MqttLog } from "@/components/MqttLog";
 import { exportDailyReport } from "@/lib/exportDailyReport";
 import { DosingModePanel } from "@/components/editorial/DosingModePanel";
 import { HeatingModeWidget } from "@/components/editorial/HeatingModeWidget";
+import { PageHeading } from "@/components/editorial/PageHeading";
+import { Reveal } from "@/components/Reveal";
 import { usePoolStore } from "@/store/poolStore";
 import { useConnection } from "@/hooks/useAquaSense";
 import { isSensorError } from "@/types/firmware";
@@ -81,25 +83,21 @@ function HomePage() {
   return (
     <AppShell>
       <div className="space-y-8 fade-up">
-        <header className="flex items-end justify-between">
-          <div>
-            <h1 className="font-display text-4xl font-semibold tracking-tight text-aqua-text sm:text-5xl">
-              Visão geral
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-aqua-text-muted">
-              Cada ciclo do ESP32 chega via MQTT a cada 5 segundos. Leituras refletem o estado
-              real da piscina — sensores, dosadoras e bomba operam de forma autônoma.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => exportDailyReport()}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
-          >
-            <FileDown className="h-4 w-4" aria-hidden />
-            Exportar PDF
-          </button>
-        </header>
+        <PageHeading
+          eyebrow="Tempo real · MQTT"
+          title="Visão geral"
+          subtitle="Cada ciclo do ESP32 chega via MQTT a cada 5 segundos. Leituras refletem o estado real da piscina — sensores, dosadoras e bomba operam de forma autônoma."
+          action={
+            <button
+              type="button"
+              onClick={() => exportDailyReport()}
+              className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-aqua-border bg-aqua-surface px-4 py-2 text-sm font-medium text-aqua-text transition-colors hover:border-aqua-accent hover:text-aqua-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
+            >
+              <FileDown className="h-4 w-4 transition-transform group-hover:translate-y-0.5" aria-hidden />
+              Exportar PDF
+            </button>
+          }
+        />
 
         <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
@@ -119,6 +117,7 @@ function HomePage() {
         </div>
 
 
+        <Reveal>
         <section aria-labelledby="qualidade-heading" className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 id="qualidade-heading" className="font-display text-xl font-semibold tracking-tight text-aqua-text">
@@ -169,10 +168,15 @@ function HomePage() {
             />
           </div>
         </section>
+        </Reveal>
 
-        <DosingModePanel show="dose" />
+        <Reveal delay={60}>
+          <DosingModePanel show="dose" />
+        </Reveal>
 
-        <MqttLog />
+        <Reveal delay={120}>
+          <MqttLog />
+        </Reveal>
       </div>
     </AppShell>
   );

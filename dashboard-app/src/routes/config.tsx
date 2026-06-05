@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
+import { PageHeading } from "@/components/editorial/PageHeading";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { AdvancedControlPanel } from "@/components/AdvancedControlPanel";
 import { AlexaIntegration } from "@/components/AlexaIntegration";
@@ -64,13 +65,12 @@ function ConfigPage() {
 
   return (
     <AppShell>
-      <div className="fade-up">
-        <header className="mb-4">
-          <h1 className="text-xl font-semibold text-aqua-text">Configurações</h1>
-          <p className="text-sm text-aqua-text-muted">
-            Sistema, hardware ESP32, integração com Alexa e informações do projeto.
-          </p>
-        </header>
+      <div className="fade-up space-y-6">
+        <PageHeading
+          eyebrow="Sistema"
+          title="Configurações"
+          subtitle="Hardware ESP32, conexão MQTT, controle avançado, integração com Alexa e informações do projeto."
+        />
         <ConfigTabsView value={tab} onValueChange={handleChange} content={TAB_CONTENT} />
       </div>
     </AppShell>

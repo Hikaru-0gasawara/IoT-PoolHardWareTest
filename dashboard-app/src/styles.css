@@ -273,6 +273,31 @@
 }
 .fade-up { animation: fade-up 0.4s ease-out both; }
 
+/* Scroll-reveal — sections fade + lift as they enter the viewport. <Reveal>
+   adds .is-visible the first time the element intersects. Editorial easing
+   (easeOutQuint), disabled whenever motion is reduced (OS media query or the
+   in-app data-reduce-motion toggle). */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+[data-reduce-motion="true"] .reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
 /* Tile interactions — hover glow follows the parameter status color */
 .tile-interactive:hover {
   box-shadow: 0 12px 28px -12px color-mix(in oklab, var(--tile-glow, var(--aqua-accent)) 55%, transparent);

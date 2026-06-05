@@ -135,10 +135,11 @@ describe("Header — estado de rota ativa no menu horizontal", () => {
     return links.find((l) => l.textContent === label && l.closest("nav"))!;
   };
 
+  // Espelha o NAV atual de AppShell (a aba "Aquecimento"/controle foi removida
+  // e seus recursos migraram para Configurações › Controle avançado).
   const items = [
     { to: "/", label: "Visão Geral" },
     { to: "/graficos", label: "Gráficos" },
-    { to: "/controle", label: "Aquecimento" },
     { to: "/alertas", label: "Alertas" },
     { to: "/config", label: "Configurações" },
   ] as const;

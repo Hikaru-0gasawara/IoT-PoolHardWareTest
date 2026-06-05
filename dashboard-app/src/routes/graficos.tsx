@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { HistoryCharts } from "@/components/HistoryCharts";
+import { PageHeading } from "@/components/editorial/PageHeading";
 
 export const Route = createFileRoute("/graficos")({
   head: () => ({
@@ -17,11 +18,12 @@ export const Route = createFileRoute("/graficos")({
 function GraficosPage() {
   return (
     <AppShell>
-      <div className="fade-up">
-        <header className="mb-4">
-          <h1 className="text-xl font-semibold text-aqua-text">Histórico</h1>
-          <p className="text-sm text-aqua-text-muted">Telemetria detalhada com exportação CSV.</p>
-        </header>
+      <div className="fade-up space-y-6">
+        <PageHeading
+          eyebrow="Telemetria"
+          title="Histórico"
+          subtitle="Janelas de 24h, 7 e 30 dias com exportação CSV — pH, cloro, alcalinidade, temperaturas e acionamentos da bomba."
+        />
         <HistoryCharts />
       </div>
     </AppShell>

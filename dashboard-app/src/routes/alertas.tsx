@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { AlertsPanel } from "@/components/AlertsPanel";
+import { PageHeading } from "@/components/editorial/PageHeading";
 
 export const Route = createFileRoute("/alertas")({
   head: () => ({
@@ -17,11 +18,12 @@ export const Route = createFileRoute("/alertas")({
 function AlertasPage() {
   return (
     <AppShell>
-      <div className="fade-up">
-        <header className="mb-4">
-          <h1 className="text-xl font-semibold text-aqua-text">Alertas</h1>
-          <p className="text-sm text-aqua-text-muted">Disparos automáticos quando parâmetros saem da faixa segura.</p>
-        </header>
+      <div className="fade-up space-y-6">
+        <PageHeading
+          eyebrow="Monitor"
+          title="Alertas"
+          subtitle="Disparos automáticos quando algum parâmetro sai da faixa segura definida no firmware."
+        />
         <AlertsPanel />
       </div>
     </AppShell>
