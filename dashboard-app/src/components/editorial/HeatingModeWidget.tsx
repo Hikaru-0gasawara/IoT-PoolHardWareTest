@@ -1,10 +1,10 @@
-import { Bot, Hand, Ban } from "lucide-react";
+import { Bot, Ban } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { usePublishControlMode, useConnection } from "@/hooks/useAquaSense";
 
 const MODES = [
   { key: "automatico" as const, label: "Automático", desc: "ESP32 decide via histerese ΔT 5°C / 1°C.", icon: <Bot className="h-4 w-4" /> },
-  { key: "manual" as const, label: "Manual", desc: "Operador liga/desliga a bomba diretamente.", icon: <Hand className="h-4 w-4" /> },
+  { key: "parado" as const, label: "Parado", desc: "Bomba pausada — clique em Automático para retomar a circulação.", icon: <Ban className="h-4 w-4" /> },
 ];
 
 export function HeatingModeWidget() {
@@ -15,7 +15,7 @@ export function HeatingModeWidget() {
   const hasLiveFirmware = conn.status === "connected" && conn.source === "mqtt";
 
   const isParado = modo === "parado";
-  const activeMode = MODES.find((m) => m.key === modo);
+  const activeMode = MODES.find((m) => m.key === modo) ?? MODES[0];
 
   return (
     <article className="w-full rounded-3xl border border-aqua-border bg-aqua-surface p-6 shadow-aqua flex flex-col">
@@ -35,30 +35,14 @@ export function HeatingModeWidget() {
         </span>
       </header>
 
-      {/* Toggle group — when parado, shows the current state as a disabled chip
-          plus the two options to switch to, making all three states readable. */}
       <div
         role="radiogroup"
         aria-label="Modo da bomba de aquecimento"
         className="flex gap-1 rounded-full border border-aqua-border bg-aqua-bg/60 p-1.5"
       >
-        {/* "Parado" state chip — only visible when pump is stopped.
-            Not a button: the user must go to Controle Avançado to select this.
-            Purpose: make the current state legible alongside the two options. */}
-        {isParado && (
-          <div
-            role="radio"
-            aria-checked
-            aria-label="Parado (definido no Controle Avançado)"
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold border border-status-warn/50 bg-status-warn/10 text-status-warn select-none"
-          >
-            <Ban className="h-3.5 w-3.5" aria-hidden />
-            Parado
-          </div>
-        )}
-
         {MODES.map((m) => {
           const active = modo === m.key;
+          const isDanger = m.key === "parado";
           return (
             <button
               key={m.key}
@@ -72,9 +56,11 @@ export function HeatingModeWidget() {
               className={[
                 "flex-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent/40",
-                active
-                  ? "bg-aqua-accent text-aqua-bg shadow-glow-accent"
-                  : "text-aqua-text-muted hover:text-aqua-text",
+                active && isDanger
+                  ? "border border-status-warn/50 bg-status-warn/10 text-status-warn"
+                  : active
+                    ? "bg-aqua-accent text-aqua-bg shadow-glow-accent"
+                    : "text-aqua-text-muted hover:text-aqua-text",
               ].join(" ")}
             >
               <span aria-hidden>{m.icon}</span>
@@ -92,9 +78,7 @@ export function HeatingModeWidget() {
             : "border-aqua-accent/15 bg-aqua-accent/5",
         ].join(" ")}>
           <p className="text-[11px] leading-relaxed text-aqua-text-muted">
-            {isParado
-              ? "Bomba pausada — clique em Automático ou Manual para retomar a circulação."
-              : (activeMode?.desc ?? "Selecione um modo acima.")}
+            {activeMode.desc}
           </p>
         </div>
       </div>

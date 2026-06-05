@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, MOTION } from "@/lib/motion";
-import { Power, Bot, Hand, Cpu, Info } from "lucide-react";
+import { Power, Bot, Ban, Cpu, Info } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { useNow } from "@/hooks/useNow";
 import { useConnection, usePublishControlMode } from "@/hooks/useAquaSense";
-import { HoldButton } from "@/components/HoldButton";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { PumpMode } from "@/types/aquasense";
 
 // Controle da BOMBA de aquecimento solar — modo independente da dosagem.
 //   Automático → o ESP32 decide via histerese ΔT 5°C / 1°C (anti-cycling 60s).
-//   Manual     → o operador liga/desliga a bomba diretamente.
+//   Parado     → bomba desativada.
 
 export function HeatingControl() {
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
@@ -20,13 +19,12 @@ export function HeatingControl() {
   const log = usePoolStore((s) => s.pumpLog);
   const modo = usePoolStore((s) => s.bomba_modo);
   const setMode = usePoolStore((s) => s.setMode);
-  const togglePumpManual = usePoolStore((s) => s.togglePumpManual);
   const conn = useConnection();
   const publishControlMode = usePublishControlMode();
   const now = useNow(1000);
 
   const brokerConnected = conn.status === "connected";
-  const isManual = modo === "manual";
+  const isParado = modo === "parado";
 
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const showFeedback = (kind: "ok" | "err", text: string) => {
@@ -70,8 +68,8 @@ export function HeatingControl() {
         <div className="flex items-center gap-3 rounded-xl border border-aqua-border bg-aqua-surface-2 p-3 text-xs text-aqua-text-muted">
           <Cpu className="h-4 w-4 shrink-0 text-aqua-accent" />
           <span>
-            {isManual
-              ? "Modo manual: o operador liga/desliga a bomba. O anti-cycling de 60s continua valendo para preservar o equipamento."
+            {isParado
+              ? "Sistema parado: a bomba está desligada. Selecione Automático para retomar o aquecimento solar."
               : "Modo automático: o ESP32 decide o acionamento da bomba a partir do ΔT entre coletor e piscina."}
           </span>
         </div>
@@ -88,9 +86,10 @@ export function HeatingControl() {
           >
             {([
               { key: "automatico" as PumpMode, label: "Automático", icon: <Bot className="h-4 w-4" /> },
-              { key: "manual" as PumpMode, label: "Manual", icon: <Hand className="h-4 w-4" /> },
+              { key: "parado" as PumpMode, label: "Parado", icon: <Ban className="h-4 w-4" /> },
             ]).map((m) => {
               const active = modo === m.key;
+              const isDanger = m.key === "parado";
               return (
                 <button
                   key={m.key}
@@ -103,7 +102,11 @@ export function HeatingControl() {
                     "flex-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent/40",
                     "disabled:cursor-not-allowed disabled:opacity-50",
-                    active ? "bg-aqua-accent text-aqua-bg shadow-glow-accent" : "text-aqua-text-muted hover:text-aqua-text",
+                    active && isDanger
+                      ? "border border-status-warn/50 bg-status-warn/10 text-status-warn"
+                      : active
+                        ? "bg-aqua-accent text-aqua-bg shadow-glow-accent"
+                        : "text-aqua-text-muted hover:text-aqua-text",
                   )}
                 >
                   <span aria-hidden>{m.icon}</span>
@@ -113,8 +116,8 @@ export function HeatingControl() {
             })}
           </div>
           <p className="mt-2 text-[11px] text-aqua-text-muted">
-            {isManual
-              ? "Acionamento direto pelo operador."
+            {isParado
+              ? "Bomba pausada — clique em Automático para retomar."
               : "Histerese ΔT 5°C / 1°C · anti-cycling 60s."}
           </p>
           {!brokerConnected && (
@@ -165,21 +168,6 @@ export function HeatingControl() {
             {!canChange && <CountdownRing seconds={Math.ceil(remaining)} />}
           </div>
 
-          {/* Acionamento manual — só no modo manual */}
-          {isManual && (
-            <div className="mt-2">
-              <HoldButton
-                tone={bombaOn ? "warn" : "danger"}
-                icon={<Power className="h-4 w-4" />}
-                disabled={!canChange}
-                disabledReason={!canChange ? `Anti-cycling: aguarde ${Math.ceil(remaining)}s` : undefined}
-                onConfirm={() => togglePumpManual()}
-                subtitle="Segure 1.5s para confirmar"
-              >
-                {bombaOn ? "Desligar bomba" : "Ligar bomba"}
-              </HoldButton>
-            </div>
-          )}
         </div>
       </div>
 

@@ -431,7 +431,6 @@ function OperationPanel() {
   const setMode = usePoolStore((s) => s.setMode);
   const setDosingMode = usePoolStore((s) => s.setDosingMode);
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
-  const togglePumpManual = usePoolStore((s) => s.togglePumpManual);
   const ultimaMudanca = usePoolStore((s) => s.ultima_mudanca_bomba_t);
   const dt = usePoolStore((s) => s.delta_t);
   const log = usePoolStore((s) => s.pumpLog);
@@ -442,7 +441,6 @@ function OperationPanel() {
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const brokerConnected = status === "connected";
-  const isManual = modo === "manual";
   const isParado = modo === "parado";
   const elapsed = (now - ultimaMudanca) / 1000;
   const remaining = Math.max(0, 60 - elapsed);
@@ -485,10 +483,8 @@ function OperationPanel() {
   };
 
   const infoText = isParado
-    ? "Sistema parado: a bomba está desligada e a dosagem bloqueada. Selecione um modo para reativar."
-    : isManual
-      ? "Modo manual: o operador liga/desliga a bomba. Anti-cycling de 60s preserva o equipamento."
-      : "Modo automático: o ESP32 aciona a bomba via histerese ΔT 5°C / 1°C com anti-cycling de 60s.";
+    ? "Sistema parado: a bomba está desligada. Selecione Automático para retomar o aquecimento solar."
+    : "Modo automático: o ESP32 aciona a bomba via histerese ΔT 5°C / 1°C com anti-cycling de 60s.";
 
   return (
     <section
@@ -530,7 +526,7 @@ function OperationPanel() {
       <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-aqua-text-muted">
         Modo da bomba
       </h3>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <ModeButton
           active={modo === "automatico"}
           disabled={!brokerConnected}
@@ -538,14 +534,6 @@ function OperationPanel() {
           label="Automático"
           sub="Histerese ΔT no ESP32"
           onClick={() => handleMode("automatico")}
-        />
-        <ModeButton
-          active={modo === "manual"}
-          disabled={!brokerConnected}
-          icon={<Hand className="h-4 w-4" />}
-          label="Manual"
-          sub="Controle direto"
-          onClick={() => handleMode("manual")}
         />
         <ModeButton
           active={modo === "parado"}
@@ -593,20 +581,6 @@ function OperationPanel() {
           {!canChange && <CountdownRing seconds={Math.ceil(remaining)} />}
         </div>
 
-        {isManual && (
-          <div className="mt-2">
-            <HoldButton
-              tone={bombaOn ? "warn" : "danger"}
-              icon={<Power className="h-4 w-4" />}
-              disabled={!canChange}
-              disabledReason={!canChange ? `Anti-cycling: aguarde ${Math.ceil(remaining)}s` : undefined}
-              onConfirm={() => togglePumpManual()}
-              subtitle="Segure 1.5s para confirmar"
-            >
-              {bombaOn ? "Desligar bomba" : "Ligar bomba"}
-            </HoldButton>
-          </div>
-        )}
       </div>
 
       {/* Histerese ΔT */}
