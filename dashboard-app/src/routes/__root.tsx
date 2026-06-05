@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { MqttProvider } from "@/providers/MqttProvider";
+import { RouteCurtain } from "@/components/RouteCurtain";
 
 import appCss from "../styles.css?url";
 
@@ -84,6 +85,7 @@ function RootComponent() {
   return (
     <MqttProvider>
       <Outlet />
+      <RouteCurtain />
     </MqttProvider>
   );
 }

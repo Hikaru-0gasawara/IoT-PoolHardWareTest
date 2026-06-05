@@ -2,10 +2,10 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { animate, stagger, MOTION } from "@/lib/motion";
 
-// Route transition: page wrapper fades + slides up; individual [data-tile]
-// elements stagger-slide in after the page is visible, giving each card a
-// sequential landing effect without conflicting opacity (tiles use translateY
-// only — opacity comes from the parent container).
+// Per-page content settle: the wrapper fades + lifts in, then [data-tile]
+// cards stagger-land. The full-screen vertical wipe between routes is handled
+// separately by <RouteCurtain> in the persistent root layout — this just
+// brings the incoming page's content in once it's revealed.
 export function RouteTransition({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const location = useLocation();
