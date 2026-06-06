@@ -18,6 +18,7 @@ import {
 import { Download } from "lucide-react";
 import { usePoolStore } from "@/store/poolStore";
 import { THRESHOLDS, statusFor, statusLabel } from "@/lib/thresholds";
+import { isSensorError } from "@/types/firmware";
 import type { SensorPoint } from "@/types/aquasense";
 
 type Range = "24h" | "7d" | "30d";
@@ -53,6 +54,25 @@ const SERIES_TO_PANEL: Record<SeriesKey, PanelKey> = {
   ph: "quimicos",
   cloro: "quimicos",
   alcalinidade: "alcalinidade",
+};
+
+// Rótulo + cor de cada série (fonte única; usado nos chips de toggle e no
+// selo de valor em tempo real do cabeçalho).
+const SERIES_CONFIG: Array<{ key: SeriesKey; label: string; color: string }> = [
+  { key: "temp_piscina", label: "Piscina", color: "var(--param-pool)" },
+  { key: "temp_coletor", label: "Coletor solar", color: "var(--param-solar)" },
+  { key: "ph", label: "pH", color: "var(--param-ph)" },
+  { key: "cloro", label: "Cloro", color: "var(--param-orp)" },
+  { key: "alcalinidade", label: "Alcalinidade", color: "var(--param-cond)" },
+];
+
+// Casas decimais por série no selo de valor em tempo real.
+const LIVE_DECIMALS: Record<SeriesKey, number> = {
+  temp_piscina: 1,
+  temp_coletor: 1,
+  ph: 2,
+  cloro: 1,
+  alcalinidade: 0,
 };
 
 function loadJSON<T extends Record<string, boolean>>(key: string, fallback: T): T {
@@ -216,14 +236,7 @@ export function HistoryCharts() {
   }
   const pumpMinutes = pumpByHour.reduce((a, b) => a + b.minutos, 0);
 
-  // Configuração dos chips do nível 2 — apenas séries cujo painel está visível.
-  const SERIES_CONFIG: Array<{ key: SeriesKey; label: string; color: string }> = [
-    { key: "temp_piscina", label: "Piscina", color: "var(--param-pool)" },
-    { key: "temp_coletor", label: "Coletor solar", color: "var(--param-solar)" },
-    { key: "ph", label: "pH", color: "var(--param-ph)" },
-    { key: "cloro", label: "Cloro", color: "var(--param-orp)" },
-    { key: "alcalinidade", label: "Alcalinidade", color: "var(--param-cond)" },
-  ];
+  // Chips do nível 2 — apenas séries cujo painel está visível.
   const visibleSeriesChips = SERIES_CONFIG.filter((s) => panels[SERIES_TO_PANEL[s.key]]);
 
   const PANEL_CONFIG: Array<{ key: PanelKey; label: string }> = [
@@ -352,6 +365,11 @@ export function HistoryCharts() {
           <ChartCard
             title="Temperaturas"
             subtitle="Piscina · Coletor · Setpoint"
+            live={
+              <PanelLiveValues
+                keys={(["temp_piscina", "temp_coletor"] as SeriesKey[]).filter((k) => series[k])}
+              />
+            }
             ariaDescription={`Gráfico de linha das temperaturas da piscina e do coletor solar nas últimas ${rangeLabel}, com a faixa ideal destacada.`}
             fallback={
               <SummaryTable
@@ -416,6 +434,9 @@ export function HistoryCharts() {
           <ChartCard
             title="Químicos da água"
             subtitle="pH e Cloro"
+            live={
+              <PanelLiveValues keys={(["ph", "cloro"] as SeriesKey[]).filter((k) => series[k])} />
+            }
             ariaDescription="Gráfico de linha com pH (eixo esquerdo) e Cloro em ppm (eixo direito), faixa ideal destacada."
             fallback={
               <SummaryTable
@@ -486,6 +507,7 @@ export function HistoryCharts() {
           <ChartCard
             title="Alcalinidade"
             subtitle="ppm"
+            live={series.alcalinidade ? <PanelLiveValues keys={["alcalinidade"]} /> : undefined}
             ariaDescription="Gráfico de área da alcalinidade da água em ppm."
             fallback={
               <SummaryTable
@@ -543,6 +565,7 @@ export function HistoryCharts() {
           <ChartCard
             title="Acionamentos da bomba"
             subtitle="Minutos ligada por hora"
+            live={<LivePumpStatus />}
             ariaDescription="Gráfico de barras com o total de minutos em que a bomba ficou ligada por hora."
             fallback={
               <div className="sr-only">
@@ -603,18 +626,104 @@ export function HistoryCharts() {
   );
 }
 
+// ── Valor em tempo real (discreto, no cabeçalho de cada gráfico) ──────────
+// Isolados em componentes próprios que assinam apenas os campos ATUAIS do
+// store. Assim só o selo re-renderiza a cada amostra (~5s) — o Recharts, que
+// depende apenas de `history`, não é re-renderizado à toa.
+
+function LiveValue({ seriesKey, value }: { seriesKey: SeriesKey; value: number }) {
+  const cfg = SERIES_CONFIG.find((s) => s.key === seriesKey);
+  if (!cfg) return null;
+  const unit = THRESHOLDS[seriesKey].unit;
+  const ok = !isSensorError(value);
+  const text = ok ? value.toFixed(LIVE_DECIMALS[seriesKey]) : "ERRO";
+  return (
+    <span
+      className="inline-flex items-baseline gap-1.5"
+      aria-label={`${cfg.label} agora: ${ok ? `${text}${unit ? ` ${unit}` : ""}` : "erro de sensor"}`}
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-1.5 w-1.5 self-center rounded-full"
+        style={{ backgroundColor: cfg.color }}
+      />
+      <span
+        className="font-tabular text-sm font-semibold leading-none"
+        style={{ color: ok ? cfg.color : "var(--status-crit)" }}
+      >
+        {text}
+        {ok && unit && (
+          <span className="ml-0.5 text-[10px] font-normal text-aqua-text-muted">{unit}</span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function PanelLiveValues({ keys }: { keys: SeriesKey[] }) {
+  const temp_piscina = usePoolStore((s) => s.temp_piscina);
+  const temp_coletor = usePoolStore((s) => s.temp_coletor);
+  const ph = usePoolStore((s) => s.ph);
+  const cloro = usePoolStore((s) => s.cloro);
+  const alcalinidade = usePoolStore((s) => s.alcalinidade);
+  if (!keys.length) return null;
+  const valueOf: Record<SeriesKey, number> = {
+    temp_piscina,
+    temp_coletor,
+    ph,
+    cloro,
+    alcalinidade,
+  };
+  return (
+    <div
+      className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1"
+      role="group"
+      aria-label="Valores em tempo real"
+    >
+      {keys.map((k) => (
+        <LiveValue key={k} seriesKey={k} value={valueOf[k]} />
+      ))}
+    </div>
+  );
+}
+
+function LivePumpStatus() {
+  const on = usePoolStore((s) => s.bomba_ligada);
+  return (
+    <div
+      className="flex shrink-0 items-center gap-1.5"
+      aria-label={`Bomba ${on ? "ligada" : "desligada"} agora`}
+    >
+      <span
+        aria-hidden="true"
+        className={`inline-block h-1.5 w-1.5 rounded-full ${on ? "bg-flow" : "bg-aqua-text-muted"}`}
+      />
+      <span
+        className={`font-tabular text-sm font-semibold leading-none ${
+          on ? "text-flow" : "text-aqua-text-muted"
+        }`}
+      >
+        {on ? "LIGADA" : "DESLIGADA"}
+      </span>
+    </div>
+  );
+}
+
 function ChartCard({
   title,
   subtitle,
   children,
   ariaDescription,
   fallback,
+  live,
 }: {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   ariaDescription?: string;
   fallback?: React.ReactNode;
+  /** Selo discreto de valor em tempo real, exibido à direita do cabeçalho. */
+  live?: React.ReactNode;
 }) {
   const headingId = `chart-${title.replace(/\s+/g, "-").toLowerCase()}`;
   const descId = `${headingId}-desc`;
@@ -624,11 +733,14 @@ function ChartCard({
       aria-labelledby={headingId}
       aria-describedby={ariaDescription ? descId : undefined}
     >
-      <div className="mb-3 flex items-baseline justify-between">
-        <h3 id={headingId} className="text-sm font-semibold text-aqua-text">
-          {title}
-        </h3>
-        <span className="text-xs text-aqua-text-muted">{subtitle}</span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={headingId} className="text-sm font-semibold text-aqua-text">
+            {title}
+          </h3>
+          <span className="text-xs text-aqua-text-muted">{subtitle}</span>
+        </div>
+        {live}
       </div>
       {ariaDescription && (
         <p id={descId} className="sr-only">
