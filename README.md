@@ -207,7 +207,7 @@ bun install      # ou: npm install
 bun dev          # ou: npm run dev
 ```
 
-Acesse `http://localhost:5173`. O broker e o namespace ficam em
+Acesse `http://localhost:4173`. O broker e o namespace ficam em
 `dashboard-app/src/providers/MqttProvider.tsx` e `dashboard-app/src/lib/mqttTopics.ts`.
 
 > Há também um dashboard **single-file** sem build em `dashboard/index.html` (abre direto no
@@ -313,21 +313,32 @@ Códigos `rc` são o retorno de `PubSubClient::state()` (traduzidos no Serial po
 ```
 AquaSense/
   AquaSense.ino                            ← firmware PRINCIPAL (ESP32 / Arduino C++) — protocolo PT v3.0
-  AquaSense.md                             ← documentação do firmware
+  README.md                                ← documentação do firmware (pinagem, protocolo, sensores)
 README.md                                  ← esta documentação
 dashboard-app/                             ← dashboard web oficial (TanStack Start / React + TS)
   src/                                     ← componentes, store, provider MQTT, tópicos
   package.json
+  README.md                                ← stack, arquitetura, como rodar, testes
 dashboard/
-  index.html                              ← dashboard single-file (sem build, namespace antigo)
+  index.html                               ← dashboard single-file (sem build, namespace antigo)
+  README.md                                ← instruções e aviso de namespace
+docs/
+  Glossario.md                             ← glossário EN→PT de campos MQTT (fonte única)
+  README.md
 alexa/                                     ← skill Alexa pt-BR (consulta + comandos via MQTT)
   skill-package/                           ← manifesto + modelo de interação
   lambda/                                  ← handler Node.js (ask-sdk-core) + ponte MQTT
+  README.md                                ← deploy, configuração, comandos de voz
 ferramentas/
   BlinkLimpaMemoria/
     BlinkLimpaMemoria.ino                  ← utilitário: sobrescreve firmware com um blink inerte
+  README.md
 wokwi/
   main.py                                  ← versão EXPERIMENTAL em MicroPython (Wokwi)
+  README.md
+.github/
+  workflows/ci.yml                         ← lint + vitest + build em cada push/PR
+  README.md
 ```
 
 > **`AquaSense.ino` é o firmware principal e oficial.** O `dashboard-app/` é o cliente web alinhado
