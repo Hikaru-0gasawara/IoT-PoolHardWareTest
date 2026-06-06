@@ -3,7 +3,7 @@ import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { ConfigTabsView } from "@/components/ConfigTabsView";
-import { CONFIG_TABS, DEFAULT_CONFIG_TAB, type ConfigTab } from "@/routes/config.tabs";
+import { CONFIG_TABS, DEFAULT_CONFIG_TAB, type ConfigTab } from "@/lib/config.tabs";
 
 // Teste de integração (E2E em jsdom) da navegação por abas de /config.
 // Renderiza o componente real de abas (Radix) com conteúdos distintos e

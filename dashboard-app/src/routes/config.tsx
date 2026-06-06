@@ -14,7 +14,7 @@ import {
   DEFAULT_CONFIG_TAB,
   isConfigTab,
   type ConfigTab,
-} from "@/routes/config.tabs";
+} from "@/lib/config.tabs";
 
 export const Route = createFileRoute("/config")({
   // Deep link: /config?tab=sobre|controle-avancado|integracoes
