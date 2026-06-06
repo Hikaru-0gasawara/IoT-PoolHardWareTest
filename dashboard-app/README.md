@@ -79,12 +79,13 @@ A preferência é persistida em `localStorage`. O HTML recebe as classes `.dark-
 ## Arquitetura
 
 ```
-ESP32 ──TCP 1883──► HiveMQ Broker ◄──WSS 8884── Dashboard (browser)
-         aquasense-ibmec-pt/*         MQTT.js + Zod → poolStore → UI
+ESP32 ──TLS 8883──► HiveMQ Cloud ◄──WSS 8884── Dashboard (browser)
+         aquasense-ibmec-pt/*        MQTT.js + Zod → poolStore → UI
 ```
 
+- **Broker:** por padrão conecta no **HiveMQ Cloud** (mesmo cluster do firmware com `USAR_TLS 1`). Configurável por env, sem recompilar: `VITE_MQTT_URL`, `VITE_MQTT_USERNAME`, `VITE_MQTT_PASSWORD` (ex.: `VITE_MQTT_URL=wss://broker.hivemq.com:8884` para o broker público).
 - **Provider:** `src/providers/MqttProvider.tsx` assina `aquasense-ibmec-pt/#`, valida o payload consolidado `dados` com Zod e empurra cada amostra para o `poolStore` via `ingestFromMqtt()`. Toda a UI lê desse store — nenhum componente faz fetch direto.
-- **Comandos enviados:** o dashboard publica `controle/modo` (modo automático / parada de emergência) e `dosagem/comando` (cloro / ácido / base). O firmware responde com `dosagem/evento` e `controle/estado`.
+- **Comandos enviados:** o dashboard publica `controle/modo` (automático / parada — enviado como `parada` no fio) e `dosagem/comando` (cloro / ácido / base). O firmware responde com `dosagem/evento` e `controle/estado`.
 - **Fallback:** se o broker ficar > 15 s sem mensagem, uma simulação local entra automaticamente. Um banner avisa o usuário; quando o MQTT volta, o dashboard retorna aos dados reais sem intervenção.
 - **Status MQTT:** `describeMqttStatus()` em `src/lib/mqttStatus.ts` é a fonte única de verdade para o estado de conexão, consumida por todos os componentes.
 

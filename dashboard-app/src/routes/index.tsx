@@ -68,6 +68,7 @@ function HomePage() {
   const tempSolar = usePoolStore((s) => s.temp_coletor);
   const deltaT = usePoolStore((s) => s.delta_t);
   const bombaOn = usePoolStore((s) => s.bomba_ligada);
+  const paradaEmergencia = usePoolStore((s) => s.parada_emergencia);
 
   const conn = useConnection();
 
@@ -85,7 +86,11 @@ function HomePage() {
   const alcalinidadeTrend = useTrend("alcalinidade");
   const tempTrend = useTrend("temp_piscina");
 
-  const heroEstado: "circulando" | "parada" | "emergencia" = bombaOn ? "circulando" : "parada";
+  const heroEstado: "circulando" | "parada" | "emergencia" = paradaEmergencia
+    ? "emergencia"
+    : bombaOn
+      ? "circulando"
+      : "parada";
 
   return (
     <AppShell>

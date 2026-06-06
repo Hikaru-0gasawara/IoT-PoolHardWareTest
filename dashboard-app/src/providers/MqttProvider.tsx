@@ -1,4 +1,4 @@
-// MqttProvider — fonte única de dados em tempo real do ESP32 (firmware v3.0).
+// MqttProvider — fonte única de dados em tempo real do ESP32 (firmware v3.1).
 //
 // Conecta ao HiveMQ Cloud (wss://...hivemq.cloud:8884/mqtt) e assina aquasense-ibmec-pt/#.
 // Fonte de verdade da UI: o payload consolidado (retain) publicado em
@@ -42,6 +42,8 @@ import {
   TOPIC_DOSING_COMMAND,
   TOPIC_CONTROL_MODE,
   TOPIC_DOSING_MODE,
+  toFirmwareMode,
+  fromFirmwareMode,
 } from "@/lib/mqttTopics";
 import {
   type GapDetectorState,
@@ -50,10 +52,15 @@ import {
   resetBaseline,
 } from "@/lib/cycleGaps";
 
-// HiveMQ Cloud (TLS/WSS 8884) — mesmo cluster do firmware (USAR_TLS 1).
-const MQTT_URL = "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
-const MQTT_USERNAME = "ProjetoIoT";
-const MQTT_PASSWORD = "IoT12345678";
+// Broker — HiveMQ Cloud (TLS/WSS 8884) por padrão, mesmo cluster do firmware
+// (USAR_TLS 1). Configurável por env (VITE_MQTT_URL / _USERNAME / _PASSWORD)
+// para apontar para outro broker (ex.: wss://broker.hivemq.com:8884 público)
+// sem recompilar.
+const ENV = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+const MQTT_URL =
+  ENV.VITE_MQTT_URL ?? "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USERNAME = ENV.VITE_MQTT_USERNAME ?? "ProjetoIoT";
+const MQTT_PASSWORD = ENV.VITE_MQTT_PASSWORD ?? "IoT12345678";
 const FALLBACK_AFTER_MS = 15_000;
 const LOG_MAX = 50;
 const RESPONSES_MAX = 50;
@@ -115,7 +122,9 @@ export const SnapshotSchema = z
     ph: numInRange(0, 14),
     cloro: numInRange(0, 10),
     alcalinidade: numInRange(0, 200),
-    condutividade_us_cm: numInRange(0, 5000),
+    // Opcional: a UI consome cloro/alcalinidade derivados; um firmware que não
+    // publique condutividade não deve ter o snapshot inteiro rejeitado.
+    condutividade_us_cm: numInRange(0, 5000).optional(),
     temp_piscina: numInRange(-10, 100),
     temp_coletor: numInRange(-10, 150),
     delta_t: z.number().finite().min(-100).max(100).optional(),
@@ -183,6 +192,11 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
     const pumpOn = f.bomba === "ON" || f.bomba === "LIGADA" || f.bomba === true;
     const alerts = (f.alertas ?? []).slice(0, 20);
 
+    // Estado de controle reportado pelo firmware (passthrough em .../dados).
+    const ctrlRaw = f as Record<string, unknown>;
+    const modoRaw = ctrlRaw.modo;
+    const doseRaw = ctrlRaw.dose_em_andamento;
+
     return {
       projeto: "AquaSense IoT",
       ciclo: f.ciclo ?? 0,
@@ -203,6 +217,9 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
       controle: {
         bomba: pumpOn ? "LIGADA" : "DESLIGADA",
         led_status: alerts.length === 0 ? "ACESO" : "APAGADO",
+        modo: typeof modoRaw === "string" ? fromFirmwareMode(modoRaw) : undefined,
+        parada_emergencia: ctrlRaw.parada_emergencia === true,
+        dose_em_andamento: typeof doseRaw === "string" ? doseRaw : null,
       },
       alertas: alerts,
     };
@@ -395,15 +412,17 @@ export function MqttProvider({ children }: { children: ReactNode }) {
     [publishWithThrottle],
   );
 
+  // Traduz o modo da UI ("parado") para o vocabulário do firmware ("parada")
+  // antes de publicar — senão o firmware descarta o comando em silêncio.
   const publishControlMode = useCallback(
     (modo: import("@/types/aquasense").PumpMode) =>
-      publishWithThrottle(TOPIC_CONTROL_MODE, { modo }, `controle:modo`),
+      publishWithThrottle(TOPIC_CONTROL_MODE, { modo: toFirmwareMode(modo) }, `controle:modo`),
     [publishWithThrottle],
   );
 
   const publishDosingMode = useCallback(
     (modo: import("@/types/aquasense").PumpMode) =>
-      publishWithThrottle(TOPIC_DOSING_MODE, { modo }, `dosagem:modo`),
+      publishWithThrottle(TOPIC_DOSING_MODE, { modo: toFirmwareMode(modo) }, `dosagem:modo`),
     [publishWithThrottle],
   );
 

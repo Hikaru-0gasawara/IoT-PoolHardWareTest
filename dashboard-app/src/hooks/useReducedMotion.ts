@@ -18,6 +18,11 @@ let systemReduced = false;
 let initialized = false;
 const listeners = new Set<() => void>();
 
+// matchMedia + handler: registrados sob demanda (refcount em `subscribe`) e
+// removidos quando o último assinante sai — evita listener pendurado para sempre.
+let mq: MediaQueryList | null = null;
+let mqOnChange: ((e: MediaQueryListEvent) => void) | null = null;
+
 function emit() {
   for (const l of listeners) l();
 }
@@ -42,18 +47,29 @@ function init() {
   } catch {
     // localStorage indisponível — segue com "system"
   }
-  if (typeof window.matchMedia === "function") {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (typeof window.matchMedia === "function" && !mq) {
+    mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     systemReduced = mq.matches;
-    const onChange = (e: MediaQueryListEvent) => {
-      systemReduced = e.matches;
-      applyAttr();
-      emit();
-    };
-    if (typeof mq.addEventListener === "function") mq.addEventListener("change", onChange);
-    else if (typeof mq.addListener === "function") mq.addListener(onChange);
   }
   applyAttr();
+}
+
+function attachMqListener() {
+  if (!mq || mqOnChange) return;
+  mqOnChange = (e: MediaQueryListEvent) => {
+    systemReduced = e.matches;
+    applyAttr();
+    emit();
+  };
+  if (typeof mq.addEventListener === "function") mq.addEventListener("change", mqOnChange);
+  else if (typeof mq.addListener === "function") mq.addListener(mqOnChange);
+}
+
+function detachMqListener() {
+  if (!mq || !mqOnChange) return;
+  if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", mqOnChange);
+  else if (typeof mq.removeListener === "function") mq.removeListener(mqOnChange);
+  mqOnChange = null;
 }
 
 export function setMotionPreference(p: MotionPreference) {
@@ -69,9 +85,11 @@ export function setMotionPreference(p: MotionPreference) {
 
 function subscribe(cb: () => void) {
   init();
+  if (listeners.size === 0) attachMqListener();
   listeners.add(cb);
   return () => {
     listeners.delete(cb);
+    if (listeners.size === 0) detachMqListener();
   };
 }
 

@@ -51,6 +51,25 @@ export const TOPIC_DOSING_COMMAND = `${MQTT_NAMESPACE}/dosagem/comando` as const
 export const TOPIC_CONTROL_MODE = `${MQTT_NAMESPACE}/controle/modo` as const;
 export const TOPIC_DOSING_MODE = `${MQTT_NAMESPACE}/controle/dosagem/modo` as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// Vocabulário de modo no fio MQTT.
+// A UI usa "parado" internamente (PumpMode), mas o FIRMWARE espera "parada".
+// Estes mapeadores traduzem na fronteira de publish (UI→firmware) e de
+// ingest (firmware→UI). Sem isto, o comando de parar/E-Stop do dashboard
+// é descartado em silêncio pelo firmware ("parado" ≠ "parada").
+// ─────────────────────────────────────────────────────────────────────
+export type FirmwareMode = "automatico" | "manual" | "parada";
+
+export function toFirmwareMode(m: "automatico" | "manual" | "parado"): FirmwareMode {
+  return m === "parado" ? "parada" : m;
+}
+
+export function fromFirmwareMode(m: string): "automatico" | "manual" | "parado" {
+  if (m === "parada" || m === "parado") return "parado";
+  if (m === "manual") return "manual";
+  return "automatico";
+}
+
 // Lista exibida no SettingsPanel — ordem reflete o que o firmware publica.
 export const PUBLISHED_TOPICS: readonly MqttTopic[] = [
   MQTT_TOPICS.PISCINA_PH,
@@ -134,7 +153,7 @@ export const COMMAND_TOPIC_MAP: readonly TopicMapEntry[] = [
     label: "Modo da bomba de aquecimento",
     topic: TOPIC_CONTROL_MODE,
     direction: "comando",
-    payload: `{ modo: "automatico" | "manual" }`,
+    payload: `{ modo: "automatico" | "parado" } (fio: "parado"→"parada")`,
   },
   {
     id: "modo-dosagem",

@@ -52,9 +52,11 @@ Grupo 1 (controle de aquecimento) · Grupo 2 (qualidade da água): João Perestr
 - O dashboard também **envia comandos**: `controle/modo` e `dosagem/comando`. O firmware os
   processa e responde com `dosagem/evento` e `controle/estado`.
 
-> **Broker:** o dashboard conecta em `broker.hivemq.com:8884` (WSS). Para os dois conversarem, o
-> ESP32 precisa estar no **mesmo broker**. Por isso o firmware vem com `USAR_TLS 0`
-> (`broker.hivemq.com:1883`, público) por padrão.
+> **Broker:** o dashboard conecta no **HiveMQ Cloud** (`wss://<cluster>:8884`) por padrão. Para os
+> dois conversarem, o ESP32 precisa estar no **mesmo cluster** — por isso o firmware vem com
+> `USAR_TLS 1` (HiveMQ Cloud) por padrão. Para um teste rápido sem credenciais, use o broker
+> **público** nos dois: `USAR_TLS 0` no firmware **e** `VITE_MQTT_URL=wss://broker.hivemq.com:8884`
+> no dashboard.
 
 ---
 
@@ -233,17 +235,19 @@ Node.js/Bun:
 Edite **apenas** estas linhas no início de `AquaSense.ino`:
 
 ```cpp
-#define USAR_TLS 0   // 0 = broker público (casa com o dashboard) | 1 = HiveMQ Cloud TLS 8883
+#define USAR_TLS 1   // 1 = HiveMQ Cloud TLS 8883 (padrão, casa com o dashboard) | 0 = broker público
 
 // Wi-Fi
 const char* WIFI_SSID = "SUA_REDE_WIFI";
 const char* WIFI_PASS = "SUA_SENHA_WIFI";
 ```
 
-- **`USAR_TLS 0`** (padrão): conecta em `broker.hivemq.com:1883` — o **mesmo broker** que o
-  dashboard usa (`:8884` WSS). É a configuração que funciona out-of-the-box.
-- **`USAR_TLS 1`**: conecta no seu cluster **HiveMQ Cloud** (TLS 8883) com usuário/senha. Neste
-  caso, ajuste também o `MQTT_URL` do dashboard (`MqttProvider.tsx`) para o seu cluster.
+- **`USAR_TLS 1`** (padrão): conecta no cluster **HiveMQ Cloud** (TLS 8883) com usuário/senha — o
+  **mesmo cluster** que o dashboard usa por padrão (`:8884` WSS). Funciona out-of-the-box com as
+  credenciais já preenchidas.
+- **`USAR_TLS 0`**: conecta em `broker.hivemq.com:1883` (público, sem TLS) para teste rápido. Neste
+  caso, aponte também o dashboard com `VITE_MQTT_URL=wss://broker.hivemq.com:8884` para usarem o
+  **mesmo broker**.
 
 > O ESP32 e o dashboard precisam falar com o **mesmo broker**. Sem TLS, use apenas em rede
 > confiável / contexto acadêmico.
@@ -306,7 +310,7 @@ sobrescrever o firmware atual com um programa inerte: ele faz **um único blink*
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
-| Dashboard em "modo simulação local" | ESP32 não está publicando no broker do dashboard | Confira `USAR_TLS 0`, Wi-Fi e o `[MQTT] OK` no Serial |
+| Dashboard em "modo simulação local" | ESP32 não está publicando no broker do dashboard | Confira que firmware e dashboard usam o **mesmo broker** (`USAR_TLS 1` ↔ HiveMQ Cloud), Wi-Fi e o `[MQTT] OK` no Serial |
 | Dashboard não recebe nada | Namespace/broker divergentes | ESP32 e dashboard devem usar `aquasense-ibmec-pt` e o **mesmo** broker |
 | Upload trava (`chip stopped responding`) | Cabo/porta USB instável | Upload Speed `115200`, cabo de dados, porta direta no PC |
 | `no member named 'init'` | LiquidCrystal_I2C de outro autor | Use a de **Frank de Brabander** (usa `begin()`) |

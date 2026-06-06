@@ -22,13 +22,15 @@ export function AnimatedNumber({ value, decimals, className }: Props) {
     const from = prev.current;
     prev.current = value;
 
-    if (isMotionReduced() || from === value || !Number.isFinite(from)) {
-      el.textContent = value.toFixed(decimals);
+    const safe = Number.isFinite(value) ? value.toFixed(decimals) : "—";
+
+    if (isMotionReduced() || from === value || !Number.isFinite(from) || !Number.isFinite(value)) {
+      el.textContent = safe;
       return;
     }
 
     const obj = { n: from };
-    animeAnimate(obj, {
+    const a1 = animeAnimate(obj, {
       n: value,
       duration: 520,
       ease: "outQuad",
@@ -36,11 +38,22 @@ export function AnimatedNumber({ value, decimals, className }: Props) {
         el.textContent = obj.n.toFixed(decimals);
       },
     });
-    animeAnimate(el, {
+    const a2 = animeAnimate(el, {
       scale: [1, 1.07, 1],
       duration: 420,
       ease: "outQuad",
     });
+
+    // Cancela tweens órfãos se `value` mudar de novo ou o componente desmontar —
+    // evita dois onUpdate disputando o mesmo textContent (flicker).
+    return () => {
+      try {
+        a1.pause();
+        a2.pause();
+      } catch {
+        /* noop */
+      }
+    };
   }, [value, decimals]);
 
   return (
@@ -49,7 +62,7 @@ export function AnimatedNumber({ value, decimals, className }: Props) {
       className={className}
       style={{ display: "inline-block", willChange: "transform" }}
     >
-      {value.toFixed(decimals)}
+      {Number.isFinite(value) ? value.toFixed(decimals) : "—"}
     </span>
   );
 }

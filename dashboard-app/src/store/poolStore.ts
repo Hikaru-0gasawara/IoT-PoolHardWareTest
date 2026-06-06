@@ -1,7 +1,7 @@
 // poolStore — fonte única de verdade do dashboard.
 //
-// Em produção os dados chegam pelo MqttProvider, que assina o broker público
-// `broker.hivemq.com` no namespace `aquasense-ibmec/` e empurra cada amostra
+// Em produção os dados chegam pelo MqttProvider, que assina o HiveMQ Cloud no
+// namespace `aquasense-ibmec-pt` e empurra cada amostra (payload `.../dados`)
 // para `ingestFromMqtt()`. Se o ESP32 ficar > 15 s sem publicar, o provider
 // liga `_start()` para rodar a simulação local como fallback (banner discreto
 // avisa o usuário). O controle real da bomba (histerese ΔT 5°C/1°C com
@@ -295,6 +295,7 @@ function buildInitial(): PoolState {
     setpoint_temp: persisted.setpoint_temp ?? 30,
     ultima_mudanca_bomba_t: now.getTime() - 1000 * 60 * 12,
     bomba_estado_desde_t: now.getTime() - 1000 * 60 * 12,
+    parada_emergencia: false,
     status_geral: "ok",
     ultima_atualizacao_t: now.getTime(),
     uptime_s: 3600 * 26,
@@ -429,6 +430,10 @@ export const usePoolStore = create<Store>((set, get) => ({
     const temp_coletor = tp.coletor_solar_C;
     const delta_t = typeof tp.delta_T === "number" ? tp.delta_T : temp_coletor - temp_piscina;
     const bomba_ligada = ctrl.bomba === "LIGADA";
+    // Estado de controle do firmware é autoritativo quando presente: reflete o
+    // modo e a parada de emergência (ex.: acionada pela Alexa) na UI.
+    const parada_emergencia = ctrl.parada_emergencia === true;
+    const bomba_modo = ctrl.modo ?? s.bomba_modo;
 
     // pumpLog: registra mudança de estado da bomba reportada pelo ESP32
     let pumpLog = s.pumpLog;
@@ -505,6 +510,8 @@ export const usePoolStore = create<Store>((set, get) => ({
       temp_coletor,
       delta_t,
       bomba_ligada,
+      bomba_modo,
+      parada_emergencia,
       ultima_mudanca_bomba_t: ultima_mudanca,
       bomba_estado_desde_t: estado_desde,
       pumpLog,
