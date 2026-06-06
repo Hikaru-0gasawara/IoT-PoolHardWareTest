@@ -106,6 +106,9 @@ export interface PoolState {
   bomba_estado_desde_t: number; // epoch ms — quando entrou no estado atual
 
   // sistema
+  // parada de emergência reportada pelo firmware (controle/estado em .../dados).
+  // Em simulação/fallback permanece false (não há firmware confirmando).
+  parada_emergencia: boolean;
   status_geral: StatusLevel;
   ultima_atualizacao_t: number;
   uptime_s: number;

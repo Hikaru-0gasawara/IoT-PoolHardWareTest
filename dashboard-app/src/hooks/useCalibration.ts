@@ -22,12 +22,17 @@ export function useCalibration(param: CalibrationParam) {
     if (typeof window === "undefined") {
       return { value: DEFAULTS[param], isCustom: false };
     }
-    const stored = window.localStorage.getItem(storageKey(param));
-    if (stored === null) return { value: DEFAULTS[param], isCustom: false };
-    const parsed = Number(stored);
-    return Number.isFinite(parsed)
-      ? { value: parsed, isCustom: true }
-      : { value: DEFAULTS[param], isCustom: false };
+    try {
+      const stored = window.localStorage.getItem(storageKey(param));
+      if (stored === null) return { value: DEFAULTS[param], isCustom: false };
+      const parsed = Number(stored);
+      return Number.isFinite(parsed)
+        ? { value: parsed, isCustom: true }
+        : { value: DEFAULTS[param], isCustom: false };
+    } catch {
+      // localStorage bloqueado (modo privado) — usa o default
+      return { value: DEFAULTS[param], isCustom: false };
+    }
   };
 
   const [state, setState] = useState(read);

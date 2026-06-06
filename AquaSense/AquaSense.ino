@@ -18,11 +18,11 @@
 //      simplificada) e a alcalinidade DERIVADA da condutividade. Esses valores
 //      continuam alimentando LCD, topicos granulares e a skill Alexa.
 //
-//  GOTCHA #1 - Broker: o dashboard conecta em broker.hivemq.com:8884 (WSS).
-//    Para os dois conversarem, o ESP32 precisa estar no MESMO broker.
-//    USAR_TLS 0 => broker.hivemq.com:1883 (publico, casa com o dashboard).
-//    USAR_TLS 1 => HiveMQ Cloud (TLS 8883); neste caso ajuste tambem o
-//    MQTT_URL do dashboard (src/providers/MqttProvider.tsx) para o seu cluster.
+//  GOTCHA #1 - Broker: o dashboard conecta no HiveMQ Cloud (wss://<cluster>:8884).
+//    Para os dois conversarem, o ESP32 precisa estar no MESMO cluster/broker.
+//    USAR_TLS 1 => HiveMQ Cloud (TLS 8883) — PADRAO, casa com o dashboard.
+//    USAR_TLS 0 => broker.hivemq.com:1883 (publico) so p/ teste rapido; nesse
+//    caso aponte tambem o dashboard via VITE_MQTT_URL=wss://broker.hivemq.com:8884.
 //  GOTCHA #2 - ESP32 so fala Wi-Fi 2.4 GHz. Rede 5G nao conecta.
 //  GOTCHA #3 - ".../dados" e ".../sistema/status" sao publicados com
 //    retain=true: quem assinar depois recebe o ultimo estado imediatamente.
@@ -37,7 +37,7 @@
 //     D26 -> Rele    (bomba do coletor solar)
 // ============================================================================
 
-#define USAR_TLS 0   // 0 = broker publico (broker.hivemq.com, casa com o dashboard) | 1 = HiveMQ Cloud TLS 8883
+#define USAR_TLS 1   // 1 = HiveMQ Cloud TLS 8883 (PADRAO, casa com o dashboard) | 0 = broker publico broker.hivemq.com p/ teste
 
 #include <WiFi.h>
 #if USAR_TLS
@@ -434,14 +434,17 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   msg[length] = '\0';
 
   // controle/modo: {"modo":"automatico"|"manual"|"parada"}
+  // "parado" e aceito como alias de "parada" (vocabulario do dashboard).
   if (strcmp(topic, TOPIC_CTRL_MODO_IN) == 0) {
     char modo[12] = "";
     if (!extrairStringJSON(msg, "modo", modo, sizeof(modo))) return;
+    const bool ehParada = (strcmp(modo, "parada") == 0) || (strcmp(modo, "parado") == 0);
     if (strcmp(modo, "automatico") != 0 &&
         strcmp(modo, "manual") != 0 &&
-        strcmp(modo, "parada") != 0) return;
-    snprintf(g_modo, sizeof(g_modo), "%s", modo);
-    g_paradaEmergencia = (strcmp(modo, "parada") == 0);
+        !ehParada) return;
+    // normaliza "parado" -> "parada"
+    snprintf(g_modo, sizeof(g_modo), "%s", ehParada ? "parada" : modo);
+    g_paradaEmergencia = ehParada;
     Serial.print(F("[CTRL] modo -> ")); Serial.println(g_modo);
     publicarControleEstado();
     return;

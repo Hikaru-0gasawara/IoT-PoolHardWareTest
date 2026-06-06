@@ -9,6 +9,7 @@ import { jsPDF, GState } from "jspdf";
 import { usePoolStore } from "@/store/poolStore";
 import { THRESHOLDS, statusFor, statusLabel } from "@/lib/thresholds";
 import { MQTT_NAMESPACE } from "@/lib/mqttTopics";
+import { isSensorError } from "@/types/firmware";
 import type { ChemEvent, SensorPoint, StatusLevel, ParameterKey } from "@/types/aquasense";
 
 // Versão do protocolo MQTT que o dashboard fala (firmware ESP32 AquaSense).
@@ -70,7 +71,7 @@ function drawChart(
   doc.setLineWidth(0.3);
   doc.rect(x, y, w, h);
 
-  const clean = series.filter((v) => Number.isFinite(v) && v > -990);
+  const clean = series.filter((v) => Number.isFinite(v) && !isSensorError(v));
   if (clean.length < 2) {
     doc.setTextColor(...MUTED);
     doc.setFontSize(9);

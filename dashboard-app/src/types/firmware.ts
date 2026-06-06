@@ -1,7 +1,7 @@
-// AquaSense IoT — Tipos exatos dos payloads publicados pelo ESP32 (firmware v2.3).
-// Namespace: aquasense-ibmec. O firmware publica leituras individuais, um
-// snapshot consolidado para a Alexa (retain) e responde comandos de dosagem
-// em alexa/resposta. NÃO renomear campos do snapshot — batem 1:1 com o JSON.
+// AquaSense IoT — Tipos exatos dos payloads publicados pelo ESP32 (firmware v3.1).
+// Namespace: aquasense-ibmec-pt. O firmware publica leituras individuais, um
+// payload consolidado (retain) em .../dados e responde comandos de dosagem em
+// .../dosagem/evento. NÃO renomear campos do snapshot — batem 1:1 com o JSON.
 
 export type WaterStatus = "OK" | "BAIXO" | "ALTO";
 export type PumpStatus = "LIGADA" | "DESLIGADA";
@@ -26,6 +26,11 @@ export interface Temperatures {
 export interface PumpState {
   bomba: PumpStatus;
   led_status: LedStatus;
+  // Estado de controle reportado pelo firmware no payload consolidado .../dados
+  // (e em .../controle/estado). Opcionais: firmwares antigos podem não enviar.
+  modo?: "automatico" | "manual" | "parado"; // normalizado de "parada"→"parado"
+  parada_emergencia?: boolean;
+  dose_em_andamento?: string | null;
 }
 
 export interface AquaSenseData {

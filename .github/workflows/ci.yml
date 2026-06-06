@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Typecheck (tsc --noEmit)
+        run: bun run typecheck
+
       - name: Unit & integration tests
         run: bun run test
 
