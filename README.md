@@ -207,8 +207,20 @@ bun install      # ou: npm install
 bun dev          # ou: npm run dev
 ```
 
-Acesse `http://localhost:4173`. O broker e o namespace ficam em
+Acesse `http://localhost:4173` (pare com `Ctrl + C`). O broker e o namespace ficam em
 `dashboard-app/src/providers/MqttProvider.tsx` e `dashboard-app/src/lib/mqttTopics.ts`.
+
+Os comandos acima são iguais em **Linux**, **macOS** e **Windows** — muda apenas como instalar o
+Node.js/Bun:
+
+| Sistema | Instalar pré-requisitos |
+|---|---|
+| **Linux** | `nvm install --lts` (Node) — ou `sudo apt install nodejs npm`. Bun (opcional): `curl -fsSL https://bun.sh/install \| bash` |
+| **macOS** | `brew install node` (Node) · `brew install oven-sh/bun/bun` (Bun, opcional) |
+| **Windows** | PowerShell: `winget install OpenJS.NodeJS.LTS` · Bun (opcional): `irm bun.sh/install.ps1 \| iex`. Rode no PowerShell/Prompt (WSL2 também funciona) |
+
+> O projeto roda tanto com **Bun** quanto com **npm** — use o que tiver. Veja
+> `dashboard-app/README.md` para o passo a passo detalhado por sistema.
 
 > Há também um dashboard **single-file** sem build em `dashboard/index.html` (abre direto no
 > browser, útil para teste rápido), porém ele usa o namespace antigo `aquasense-ibmec`. O

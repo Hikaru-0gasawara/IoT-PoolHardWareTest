@@ -14,13 +14,53 @@ Dashboard de monitoramento em tempo real do sistema **AquaSense IoT** — uma pi
 
 ## Como rodar
 
+Depois de instalar os pré-requisitos do seu sistema (abaixo), os comandos são os mesmos:
+
 ```bash
 cd dashboard-app
-bun install
-bun dev
+bun install      # ou: npm install
+bun dev          # ou: npm run dev
 ```
 
-Acesse `http://localhost:4173`.
+Acesse `http://localhost:4173`. Para parar o servidor, use `Ctrl + C` no terminal.
+
+### Pré-requisitos por sistema
+
+**Linux**
+
+```bash
+# Node.js (via nvm) — recomendado
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+nvm install --lts
+
+# Bun (opcional, mais rápido)
+curl -fsSL https://bun.sh/install | bash
+```
+
+Ou use o gerenciador da sua distro (ex.: `sudo apt install nodejs npm` no Debian/Ubuntu).
+
+**macOS**
+
+```bash
+# Com Homebrew (https://brew.sh)
+brew install node      # Node.js + npm
+brew install oven-sh/bun/bun   # Bun (opcional)
+```
+
+**Windows**
+
+PowerShell (recomendado usar o [winget](https://learn.microsoft.com/windows/package-manager/)):
+
+```powershell
+winget install OpenJS.NodeJS.LTS    # Node.js + npm
+powershell -c "irm bun.sh/install.ps1 | iex"   # Bun (opcional)
+```
+
+Depois rode os comandos no **PowerShell** ou no **Prompt de Comando** (não precisa de WSL).
+Se preferir, o WSL2 também funciona — nesse caso siga as instruções de Linux.
+
+> **Bun ou npm?** O projeto funciona com os dois. O CI usa Bun, mas `npm install` + `npm run dev`
+> produzem o mesmo resultado. Use o que já tiver instalado.
 
 O broker e o namespace ficam em `src/providers/MqttProvider.tsx` e `src/lib/mqttTopics.ts`.
 
