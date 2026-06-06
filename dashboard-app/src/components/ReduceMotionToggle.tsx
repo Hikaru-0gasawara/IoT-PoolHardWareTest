@@ -18,7 +18,7 @@ export function ReduceMotionToggle() {
       aria-pressed={reduced}
       title={next}
       data-testid="reduce-motion-toggle"
-      className="rounded-lg border border-aqua-border bg-aqua-surface p-2 text-aqua-text-muted transition-colors hover:text-aqua-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
+      className="rounded-lg border border-aqua-border bg-aqua-surface p-3.5 text-aqua-text-muted transition-colors hover:text-aqua-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent"
     >
       {reduced ? <Activity className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
     </button>

@@ -5,7 +5,7 @@ import {
   isConfigTab,
   parseTabParam,
   resolveInitialTab,
-} from "@/routes/config.tabs";
+} from "@/lib/config.tabs";
 
 // Regra de negócio: na página /config, a aba "Controle Avançado" deve SEMPRE
 // aparecer ANTES da aba "Sobre". A UI renderiza a partir de CONFIG_TABS, então

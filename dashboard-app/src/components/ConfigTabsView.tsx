@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CONFIG_TABS, isConfigTab, type ConfigTab } from "@/routes/config.tabs";
+import { CONFIG_TABS, isConfigTab, type ConfigTab } from "@/lib/config.tabs";
 
 // Componente apresentacional das abas de /config. Sem dependência de router
 // nem de store — recebe a aba ativa, o callback de mudança e o conteúdo de

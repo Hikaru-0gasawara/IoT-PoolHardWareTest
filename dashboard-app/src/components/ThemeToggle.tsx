@@ -24,7 +24,7 @@ export function ThemeToggle() {
           aria-label={label}
           title={label}
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+            "flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-accent",
             theme === key
               ? "bg-aqua-surface text-aqua-text shadow-sm"
