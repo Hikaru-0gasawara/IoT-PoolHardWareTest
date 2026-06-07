@@ -205,8 +205,8 @@ do ESP32 via **MQTT sobre WebSocket Secure**.
 
 ```bash
 cd dashboard-app
-bun install      # ou: npm install
-bun dev          # ou: npm run dev
+npm install      # ou: bun install
+npm run dev      # ou: bun dev
 ```
 
 Acesse `http://localhost:4173` (pare com `Ctrl + C`). O broker e o namespace ficam em
