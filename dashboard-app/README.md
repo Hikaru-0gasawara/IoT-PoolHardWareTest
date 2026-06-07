@@ -160,6 +160,27 @@ bun run test -- --ui   # abre o Vitest UI no browser
 
 O CI (`.github/workflows/ci.yml`) executa `bun run lint`, `bun run test` e `bun run build` em cada push e PR para `main`.
 
+## Deploy
+
+O dashboard é hospedado como site estático no **Cloudflare Pages** (projeto `aquasense-iot`). `bun run build` (ou `npm run build`) gera `dist/client/` já com `index.html` e `_redirects` (ver `scripts/postbuild-spa.mjs`), prontos para qualquer host estático.
+
+Para atualizar o site em produção a partir da branch `main`:
+
+```bash
+git checkout main
+git pull origin main
+
+cd dashboard-app
+bun install              # ou: npm install
+bun run build            # ou: npm run build — gera dist/client/
+
+npx wrangler pages deploy dist/client --project-name aquasense-iot --branch main --commit-dirty=true
+```
+
+> **`--branch`** define o ambiente no Cloudflare Pages: `main` publica em **produção** (`aquasense-iot.pages.dev`); qualquer outro nome cria um **preview** isolado (`<branch>.aquasense-iot.pages.dev`), útil para testar antes de ir ao ar.
+>
+> Na primeira execução o Wrangler pede login (`npx wrangler login`).
+
 ## Equipe
 
 - **Grupo 1** (controle de aquecimento): Martim Roxo · Vitor Yoshida
