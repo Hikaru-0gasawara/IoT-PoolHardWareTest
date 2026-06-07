@@ -188,6 +188,7 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
     // Estado de controle reportado pelo firmware (passthrough em .../dados).
     const ctrlRaw = f as Record<string, unknown>;
     const modoRaw = ctrlRaw.modo;
+    const modoDosagemRaw = ctrlRaw.modo_dosagem;
     const doseRaw = ctrlRaw.dose_em_andamento;
 
     return {
@@ -211,6 +212,8 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
         bomba: pumpOn ? "LIGADA" : "DESLIGADA",
         led_status: alerts.length === 0 ? "ACESO" : "APAGADO",
         modo: typeof modoRaw === "string" ? fromFirmwareMode(modoRaw) : undefined,
+        modo_dosagem:
+          typeof modoDosagemRaw === "string" ? fromFirmwareMode(modoDosagemRaw) : undefined,
         parada_emergencia: ctrlRaw.parada_emergencia === true,
         dose_em_andamento: typeof doseRaw === "string" ? doseRaw : null,
       },

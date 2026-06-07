@@ -29,6 +29,9 @@ export interface PumpState {
   // Estado de controle reportado pelo firmware no payload consolidado .../dados
   // (e em .../controle/estado). Opcionais: firmwares antigos podem não enviar.
   modo?: "automatico" | "manual" | "parado"; // normalizado de "parada"→"parado"
+  // Modo da dosagem química (controle/dosagem/modo) — independente da bomba.
+  // Mesmo vocabulário/normalização de `modo`. Ausente em firmwares antigos.
+  modo_dosagem?: "automatico" | "manual" | "parado";
   parada_emergencia?: boolean;
   dose_em_andamento?: string | null;
 }

@@ -434,6 +434,7 @@ export const usePoolStore = create<Store>((set, get) => ({
     // modo e a parada de emergência (ex.: acionada pela Alexa) na UI.
     const parada_emergencia = ctrl.parada_emergencia === true;
     const bomba_modo = ctrl.modo ?? s.bomba_modo;
+    const dosagem_modo = ctrl.modo_dosagem ?? s.dosagem_modo;
 
     // pumpLog: registra mudança de estado da bomba reportada pelo ESP32
     let pumpLog = s.pumpLog;
@@ -511,6 +512,7 @@ export const usePoolStore = create<Store>((set, get) => ({
       delta_t,
       bomba_ligada,
       bomba_modo,
+      dosagem_modo,
       parada_emergencia,
       ultima_mudanca_bomba_t: ultima_mudanca,
       bomba_estado_desde_t: estado_desde,

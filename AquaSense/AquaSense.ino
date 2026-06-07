@@ -119,6 +119,7 @@ const char* TOPIC_CTRL_ESTADO    = NS "/controle/estado";       // retain
 const char* TOPIC_DOS_EVENTO     = NS "/dosagem/evento";
 // Recebidos do dashboard:
 const char* TOPIC_CTRL_MODO_IN   = NS "/controle/modo";
+const char* TOPIC_DOS_MODO_IN    = NS "/controle/dosagem/modo";  // modo da dosagem, independente da bomba
 const char* TOPIC_DOS_CMD_IN     = NS "/dosagem/comando";
 
 #if USAR_TLS
@@ -179,6 +180,10 @@ static float g_umid   = 65.0f;
 // Estado de controle (espelha controle/estado).
 char g_modo[12]           = "automatico";   // "automatico" | "manual" | "parada"
 bool g_paradaEmergencia   = false;
+// Modo da DOSAGEM quimica — independente do modo da bomba (controle/modo).
+// "parada" aqui pausa apenas comandos de dosagem; nao afeta o E-Stop global.
+char g_modoDosagem[12]    = "automatico";   // "automatico" | "manual" | "parada"
+bool g_dosagemPausada     = false;
 char g_doseEmAndamento[8] = "";              // "" = null | "cloro" | "acido" | "base"
 
 // ============================================================================
@@ -337,20 +342,22 @@ static void publicarDados() {
     snprintf(dose, sizeof(dose), "\"%s\"", g_doseEmAndamento);
   }
 
-  char payload[480];
+  char payload[512];
   snprintf(payload, sizeof(payload),
     "{\"projeto\":\"AquaSense IoT\",\"ciclo\":%lu,"
     "\"ph\":%.2f,\"orp_mv\":%.1f,\"cloro\":%.2f,\"alcalinidade\":%.1f,"
     "\"condutividade_us_cm\":%.1f,"
     "\"temp_piscina\":%.1f,\"temp_coletor\":%.1f,\"delta_t\":%.1f,\"umidade\":%.1f,"
     "\"bomba\":\"%s\",\"alertas\":%s,"
-    "\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s}",
+    "\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s,"
+    "\"modo_dosagem\":\"%s\"}",
     (unsigned long)ciclo,
     g_ph, g_orp, g_cloro, g_alc,
     g_cond,
     g_tPisc, g_tSolar, deltaT, g_umid,
     bombaLigada ? "LIGADA" : "DESLIGADA", alertas,
-    g_modo, g_paradaEmergencia ? "true" : "false", dose);
+    g_modo, g_paradaEmergencia ? "true" : "false", dose,
+    g_modoDosagem);
 
   bool ok = mqtt.publish(TOPIC_DADOS, (const uint8_t*)payload, strlen(payload), true);
   logPublish(TOPIC_DADOS, ok);
@@ -386,10 +393,11 @@ static void publicarControleEstado() {
   if (g_doseEmAndamento[0] == '\0') snprintf(dose, sizeof(dose), "null");
   else snprintf(dose, sizeof(dose), "\"%s\"", g_doseEmAndamento);
 
-  char payload[128];
+  char payload[160];
   snprintf(payload, sizeof(payload),
-    "{\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s}",
-    g_modo, g_paradaEmergencia ? "true" : "false", dose);
+    "{\"modo\":\"%s\",\"parada_emergencia\":%s,\"dose_em_andamento\":%s,"
+    "\"modo_dosagem\":\"%s\"}",
+    g_modo, g_paradaEmergencia ? "true" : "false", dose, g_modoDosagem);
   logPublish(TOPIC_CTRL_ESTADO, mqtt.publish(TOPIC_CTRL_ESTADO, payload, true));
 }
 
@@ -450,6 +458,23 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
+  // controle/dosagem/modo: {"modo":"automatico"|"manual"|"parada"}
+  // Independente do modo da bomba — "parada" pausa so os comandos de dosagem
+  // (nao aciona o E-Stop global nem afeta controlarBomba).
+  if (strcmp(topic, TOPIC_DOS_MODO_IN) == 0) {
+    char modo[12] = "";
+    if (!extrairStringJSON(msg, "modo", modo, sizeof(modo))) return;
+    const bool ehParada = (strcmp(modo, "parada") == 0) || (strcmp(modo, "parado") == 0);
+    if (strcmp(modo, "automatico") != 0 &&
+        strcmp(modo, "manual") != 0 &&
+        !ehParada) return;
+    snprintf(g_modoDosagem, sizeof(g_modoDosagem), "%s", ehParada ? "parada" : modo);
+    g_dosagemPausada = ehParada;
+    Serial.print(F("[DOSE] modo -> ")); Serial.println(g_modoDosagem);
+    publicarControleEstado();
+    return;
+  }
+
   // dosagem/comando: {"parametro":"cloro"|"acido"|"base"}
   if (strcmp(topic, TOPIC_DOS_CMD_IN) == 0) {
     char param[8] = "";
@@ -458,9 +483,13 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
         strcmp(param, "acido") != 0 &&
         strcmp(param, "base") != 0) return;
 
-    // Camadas de seguranca minimas: E-Stop e dose ja em andamento.
+    // Camadas de seguranca minimas: E-Stop, modo de dosagem pausado e dose ja em andamento.
     if (g_paradaEmergencia) {
       publicarEventoDosagem(param, "bloqueada", "parada de emergencia ativa", "manual");
+      return;
+    }
+    if (g_dosagemPausada) {
+      publicarEventoDosagem(param, "bloqueada", "modo de dosagem pausado", "manual");
       return;
     }
     if (g_doseEmAndamento[0] != '\0') {
@@ -691,10 +720,13 @@ void gerenciarMQTT() {
     logPublish(TOPIC_SIS_STATUS, mqtt.publish(TOPIC_SIS_STATUS, "online", true));
     bool s1 = mqtt.subscribe(TOPIC_CTRL_MODO_IN);
     bool s2 = mqtt.subscribe(TOPIC_DOS_CMD_IN);
+    bool s3 = mqtt.subscribe(TOPIC_DOS_MODO_IN);
     Serial.print(F("[MQTT] subscribe controle/modo="));
     Serial.print(s1 ? F("OK") : F("FALHOU"));
     Serial.print(F(" dosagem/comando="));
-    Serial.println(s2 ? F("OK") : F("FALHOU"));
+    Serial.print(s2 ? F("OK") : F("FALHOU"));
+    Serial.print(F(" controle/dosagem/modo="));
+    Serial.println(s3 ? F("OK") : F("FALHOU"));
     publicarControleEstado();   // retain inicial
     publicarSaude();
     ultimaSaude = millis();

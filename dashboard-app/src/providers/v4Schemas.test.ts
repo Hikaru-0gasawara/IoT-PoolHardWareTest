@@ -104,6 +104,7 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
       bomba: "LIGADA",
       alertas: [],
       modo: "automatico",
+      modo_dosagem: "manual",
       parada_emergencia: false,
       dose_em_andamento: null,
     });
@@ -120,7 +121,48 @@ describe("parseSnapshot — fixture do payload real do firmware v3.0", () => {
     expect(d.temperaturas.coletor_solar_C).toBe(42.8);
     expect(d.temperaturas.delta_T).toBeCloseTo(12.3, 1);
     expect(d.controle.bomba).toBe("LIGADA");
+    expect(d.controle.modo).toBe("automatico");
+    expect(d.controle.modo_dosagem).toBe("manual");
     expect(d.ciclo).toBe(42);
+  });
+
+  it("normaliza modo_dosagem 'parada' (firmware) -> 'parado' (UI), igual a `modo`", () => {
+    const raw = JSON.stringify({
+      ph: 7.4,
+      orp_mv: 700,
+      cloro: 2.5,
+      alcalinidade: 100,
+      condutividade_us_cm: 1200,
+      temp_piscina: 30,
+      temp_coletor: 40,
+      bomba: "ON",
+      modo: "parada",
+      modo_dosagem: "parada",
+    });
+    const d = parseSnapshot(raw);
+    expect(d).not.toBeNull();
+    if (!d) return;
+    expect(d.controle.modo).toBe("parado");
+    expect(d.controle.modo_dosagem).toBe("parado");
+  });
+
+  it("modo_dosagem fica undefined quando o firmware nao envia (compat com versoes antigas)", () => {
+    const raw = JSON.stringify({
+      ph: 7.4,
+      orp_mv: 700,
+      cloro: 2.5,
+      alcalinidade: 100,
+      condutividade_us_cm: 1200,
+      temp_piscina: 30,
+      temp_coletor: 40,
+      bomba: "ON",
+      modo: "automatico",
+    });
+    const d = parseSnapshot(raw);
+    expect(d).not.toBeNull();
+    if (!d) return;
+    expect(d.controle.modo).toBe("automatico");
+    expect(d.controle.modo_dosagem).toBeUndefined();
   });
 
   it("deriva delta_T quando ausente (temp_coletor - temp_piscina)", () => {
