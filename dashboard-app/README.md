@@ -26,6 +26,10 @@ Acesse `http://localhost:4173`. Para parar o servidor, use `Ctrl + C` no termina
 
 ### Pré-requisitos por sistema
 
+> Se sua máquina já tem **Node.js** (e portanto `npm`), pode pular esta seção — é só rodar os
+> comandos acima. As instruções abaixo só são necessárias para quem for instalar o **Bun**
+> (opcional, mais rápido) ou ainda não tem o Node.js.
+
 **Linux**
 
 ```bash
