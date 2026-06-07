@@ -162,7 +162,7 @@ O CI (`.github/workflows/ci.yml`) executa `bun run lint`, `bun run test` e `bun 
 
 ## Deploy
 
-O dashboard é hospedado como site estático no **Cloudflare Pages** (projeto `aquasense-iot`). `bun run build` (ou `npm run build`) gera `dist/client/` já com `index.html` e `_redirects` (ver `scripts/postbuild-spa.mjs`), prontos para qualquer host estático.
+O dashboard é hospedado como site estático no **Cloudflare Pages** (projeto `aquasense-iot`). `npm run build` (ou `bun run build`) gera `dist/client/` já com `index.html` e `_redirects` (ver `scripts/postbuild-spa.mjs`), prontos para qualquer host estático.
 
 Para atualizar o site em produção a partir da branch `main`:
 
@@ -171,8 +171,8 @@ git checkout main
 git pull origin main
 
 cd dashboard-app
-bun install              # ou: npm install
-bun run build            # ou: npm run build — gera dist/client/
+npm install              # ou: bun install
+npm run build            # ou: bun run build — gera dist/client/
 
 npx wrangler pages deploy dist/client --project-name aquasense-iot --branch main --commit-dirty=true
 ```
