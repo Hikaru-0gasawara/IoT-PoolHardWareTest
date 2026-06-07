@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processAggregatedAlertsWithStats, type ParamReading } from "./poolStore";
+import { processAggregatedAlertsWithStats, type ParamReading } from "./alertEngine";
 import type { AggregatedAlert, ParameterKey } from "@/types/aquasense";
 
 // Foco: contadores `opened`, `escalations`, `resolved` retornados pelo
