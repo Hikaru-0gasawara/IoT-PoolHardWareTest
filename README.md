@@ -215,6 +215,9 @@ Acesse `http://localhost:4173` (pare com `Ctrl + C`). O broker e o namespace fic
 Os comandos acima são iguais em **Linux**, **macOS** e **Windows** — muda apenas como instalar o
 Node.js/Bun:
 
+> Já tem **Node.js** (e `npm`) na máquina? Pode pular a tabela abaixo — ela só é necessária para
+> quem for instalar o **Bun** (opcional, mais rápido) ou ainda não tem o Node.js.
+
 | Sistema | Instalar pré-requisitos |
 |---|---|
 | **Linux** | `nvm install --lts` (Node) — ou `sudo apt install nodejs npm`. Bun (opcional): `curl -fsSL https://bun.sh/install \| bash` |
