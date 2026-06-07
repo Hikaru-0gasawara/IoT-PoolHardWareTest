@@ -31,6 +31,28 @@ npm run build      # ou: bun run build — gera dist/client/
 npm run preview    # ou: bun run preview — serve a build em http://localhost:4173
 ```
 
+### Acesso remoto pessoal (túnel)
+
+O dashboard é **pessoal** — pensado para o próprio usuário acompanhar a piscina, não para ser um
+site público. Quando você precisar acessá-lo de fora de casa (ex.: pelo celular na rua) sem
+publicar nada permanente, exponha o servidor local por um **túnel temporário**:
+
+```bash
+# terminal 1 — sobe o dashboard acessível na rede
+npm run dev -- --host
+
+# terminal 2 — cria um túnel público temporário para o dashboard
+npx cloudflared tunnel --url http://localhost:4173
+```
+
+O `cloudflared` imprime uma URL `https://...trycloudflare.com` que aponta para a sua máquina. Ela
+funciona **apenas enquanto os dois comandos estiverem rodando** e some ao fechar o terminal — ideal
+para uso pessoal e momentâneo.
+
+> ⚠️ Enquanto o túnel está ativo, **qualquer pessoa com o link** acessa seu dashboard. Como ele é
+> pessoal, compartilhe a URL apenas com você mesmo e encerre o túnel (`Ctrl + C`) quando terminar.
+> Para algo permanente e otimizado, prefira o **Deploy** (abaixo) em vez do túnel.
+
 ### Pré-requisitos por sistema
 
 > Se sua máquina já tem **Node.js** (e portanto `npm`), pode pular esta seção — é só rodar os
