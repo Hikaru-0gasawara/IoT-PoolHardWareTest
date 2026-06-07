@@ -24,6 +24,13 @@ npm run dev      # ou: bun dev
 
 Acesse `http://localhost:4173`. Para parar o servidor, use `Ctrl + C` no terminal.
 
+Para conferir a build de produção localmente (a mesma que vai pro deploy), gere os arquivos e sirva-os:
+
+```bash
+npm run build      # ou: bun run build — gera dist/client/
+npm run preview    # ou: bun run preview — serve a build em http://localhost:4173
+```
+
 ### Pré-requisitos por sistema
 
 > Se sua máquina já tem **Node.js** (e portanto `npm`), pode pular esta seção — é só rodar os
@@ -180,6 +187,9 @@ npm run build            # ou: bun run build — gera dist/client/
 
 npx wrangler pages deploy dist/client --project-name aquasense-iot --branch main --commit-dirty=true
 ```
+
+> Antes de publicar, dá para conferir a build localmente com `npm run preview` (ou `bun run preview`),
+> que serve o conteúdo de `dist/client/` em `http://localhost:4173`.
 
 > **`--branch`** define o ambiente no Cloudflare Pages: `main` publica em **produção** (`aquasense-iot.pages.dev`); qualquer outro nome cria um **preview** isolado (`<branch>.aquasense-iot.pages.dev`), útil para testar antes de ir ao ar.
 >
