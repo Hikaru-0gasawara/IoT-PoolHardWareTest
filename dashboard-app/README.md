@@ -18,8 +18,8 @@ Depois de instalar os pré-requisitos do seu sistema (abaixo), os comandos são 
 
 ```bash
 cd dashboard-app
-bun install      # ou: npm install
-bun dev          # ou: npm run dev
+npm install      # ou: bun install
+npm run dev      # ou: bun dev
 ```
 
 Acesse `http://localhost:4173`. Para parar o servidor, use `Ctrl + C` no terminal.
