@@ -33,10 +33,10 @@ import {
   type MqttContextValue,
   type MqttLogEntry,
   type SensorFailureCounts,
-  type WaterStatus,
   isSensorError,
 } from "@/types/firmware";
 import { usePoolStore } from "@/store/poolStore";
+import { waterStatusFor } from "@/lib/thresholds";
 import {
   MQTT_TOPICS,
   TOPIC_DOSING_COMMAND,
@@ -89,13 +89,6 @@ const MqttContext = createContext<MqttContextValue>({
 });
 
 const SENTINEL = -99.0;
-
-function statusFor(value: number, min: number, max: number): WaterStatus {
-  if (value <= -50) return "OK"; // erro de sensor — UI trata separado
-  if (value < min) return "BAIXO";
-  if (value > max) return "ALTO";
-  return "OK";
-}
 
 const numInRange = (min: number, max: number) =>
   z
@@ -202,11 +195,11 @@ export function parseSnapshot(raw: string): AquaSenseData | null {
       ciclo: f.ciclo ?? 0,
       qualidade_agua: {
         ph,
-        ph_status: statusFor(ph, 7.2, 7.6),
+        ph_status: waterStatusFor("ph", ph),
         cloro,
-        cloro_status: statusFor(cloro, 1.0, 3.0),
+        cloro_status: waterStatusFor("cloro", cloro),
         alcalinidade,
-        alcalinidade_status: statusFor(alcalinidade, 80, 120),
+        alcalinidade_status: waterStatusFor("alcalinidade", alcalinidade),
       },
       temperaturas: {
         piscina_C: tPool,

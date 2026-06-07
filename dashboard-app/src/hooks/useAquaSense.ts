@@ -4,6 +4,7 @@
 
 import { useMqtt } from "@/providers/MqttProvider";
 import { usePoolStore } from "@/store/poolStore";
+import { waterStatusFor } from "@/lib/thresholds";
 import type {
   AquaSenseData,
   DataSource,
@@ -18,11 +19,11 @@ function buildFromStore(): AquaSenseData {
   const s = usePoolStore.getState();
   const wq: WaterQuality = {
     ph: s.ph,
-    ph_status: s.ph < 7.2 ? "BAIXO" : s.ph > 7.6 ? "ALTO" : "OK",
+    ph_status: waterStatusFor("ph", s.ph),
     cloro: s.cloro,
-    cloro_status: s.cloro < 1.0 ? "BAIXO" : s.cloro > 3.0 ? "ALTO" : "OK",
+    cloro_status: waterStatusFor("cloro", s.cloro),
     alcalinidade: s.alcalinidade,
-    alcalinidade_status: s.alcalinidade < 80 ? "BAIXO" : s.alcalinidade > 120 ? "ALTO" : "OK",
+    alcalinidade_status: waterStatusFor("alcalinidade", s.alcalinidade),
   };
   const tp: Temperatures = {
     piscina_C: s.temp_piscina,
