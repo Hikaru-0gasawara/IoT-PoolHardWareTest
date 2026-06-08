@@ -61,6 +61,15 @@ const MQTT_URL =
   ENV.VITE_MQTT_URL ?? "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
 const MQTT_USERNAME = ENV.VITE_MQTT_USERNAME ?? "ProjetoIoT";
 const MQTT_PASSWORD = ENV.VITE_MQTT_PASSWORD ?? "IoT12345678";
+
+// Modo demo público — para builds expostas na internet (deploy), sem dono
+// presente para acompanhar quem acessa. Quando VITE_PUBLIC_DEMO=true, o
+// provider nunca conecta ao broker real: roda só a simulação local, e — como
+// efeito colateral desejado — bloqueia comandos reais (clientRef permanece
+// null), então visitantes anônimos não conseguem operar a piscina de verdade.
+// Instâncias pessoais (dev local, túnel) não definem essa env var e
+// continuam recebendo a telemetria real normalmente.
+const PUBLIC_DEMO_MODE = ENV.VITE_PUBLIC_DEMO === "true";
 const FALLBACK_AFTER_MS = 15_000;
 const LOG_MAX = 50;
 const RESPONSES_MAX = 50;
@@ -260,6 +269,16 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (PUBLIC_DEMO_MODE) {
+      sourceRef.current = "fallback";
+      setSource("fallback");
+      setStatus("disconnected");
+      usePoolStore.getState()._start();
+      return () => {
+        usePoolStore.getState()._stopSimulation?.();
+      };
+    }
+
     const client = mqtt.connect(MQTT_URL, {
       reconnectPeriod: 4000,
       connectTimeout: 8000,
