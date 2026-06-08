@@ -197,7 +197,11 @@ O CI (`.github/workflows/ci.yml`) executa `bun run lint`, `bun run test` e `bun 
 
 O dashboard é hospedado como site estático no **Cloudflare Pages** (projeto `aquasense-iot`). `npm run build` (ou `bun run build`) gera `dist/client/` já com `index.html` e `_redirects` (ver `scripts/postbuild-spa.mjs`), prontos para qualquer host estático.
 
-Para atualizar o site em produção a partir da branch `main`:
+Para atualizar o site em produção a partir do código-fonte mais recente (branch git `main`):
+
+> Não confunda: a branch **git** (`main`, onde mora o código-fonte) e a **Production branch do
+> Cloudflare Pages** (`aquasense`, usada na flag `--branch` do Wrangler abaixo) são coisas
+> diferentes — só coincide de ambas existirem no projeto.
 
 ```bash
 git checkout main
@@ -207,13 +211,16 @@ cd dashboard-app
 npm install              # ou: bun install
 npm run build            # ou: bun run build — gera dist/client/
 
-npx wrangler pages deploy dist/client --project-name aquasense-iot --branch main --commit-dirty=true
+npx wrangler pages deploy dist/client --project-name aquasense-iot --branch aquasense --commit-dirty=true
 ```
 
 > Antes de publicar, dá para conferir a build localmente com `npm run preview` (ou `bun run preview`),
 > que serve o conteúdo de `dist/client/` em `http://localhost:4173`.
 
-> **`--branch`** define o ambiente no Cloudflare Pages: `main` publica em **produção** (`aquasense-iot.pages.dev`); qualquer outro nome cria um **preview** isolado (`<branch>.aquasense-iot.pages.dev`), útil para testar antes de ir ao ar.
+> **`--branch`** define o ambiente no Cloudflare Pages — e precisa bater com a **Production branch**
+> configurada em *Settings → General* do projeto `aquasense-iot` (hoje: **`aquasense`**). Usar essa
+> branch publica em **produção** (`aquasense-iot.pages.dev`); qualquer outro nome (ex.: `main`) cria
+> um **preview** isolado (`<branch>.aquasense-iot.pages.dev`), útil para testar antes de ir ao ar.
 >
 > Na primeira execução o Wrangler pede login (`npx wrangler login`).
 
