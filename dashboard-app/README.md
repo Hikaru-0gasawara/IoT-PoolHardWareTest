@@ -116,7 +116,7 @@ ESP32 ──TLS 8883──► HiveMQ Cloud ◄──WSS 8884── Dashboard (br
          aquasense-ibmec-pt/*        MQTT.js + Zod → poolStore → UI
 ```
 
-- **Broker:** por padrão conecta no **HiveMQ Cloud** (mesmo cluster do firmware com `USAR_TLS 1`). Configurável por env, sem recompilar: `VITE_MQTT_URL`, `VITE_MQTT_USERNAME`, `VITE_MQTT_PASSWORD` (ex.: `VITE_MQTT_URL=wss://broker.hivemq.com:8884` para o broker público).
+- **Broker:** por padrão conecta no **HiveMQ Cloud** (mesmo cluster do firmware com `USAR_TLS 1`). Configurável por env, sem recompilar: `VITE_MQTT_URL`, `VITE_MQTT_USERNAME`, `VITE_MQTT_PASSWORD` (ex.: `VITE_MQTT_URL=wss://broker.hivemq.com:8884` para o broker público). `VITE_PUBLIC_DEMO=true` desativa essa conexão por completo — usado na build pública (ver seção "Deploy" → "Modo demo público").
 - **Provider:** `src/providers/MqttProvider.tsx` assina `aquasense-ibmec-pt/#`, valida o payload consolidado `dados` com Zod e empurra cada amostra para o `poolStore` via `ingestFromMqtt()`. Toda a UI lê desse store — nenhum componente faz fetch direto.
 - **Comandos enviados:** o dashboard publica `controle/modo` (automático / parada — enviado como `parada` no fio) e `dosagem/comando` (cloro / ácido / base). O firmware responde com `dosagem/evento` e `controle/estado`.
 - **Fallback:** se o broker ficar > 15 s sem mensagem, uma simulação local entra automaticamente. Um banner avisa o usuário; quando o MQTT volta, o dashboard retorna aos dados reais sem intervenção.
@@ -216,6 +216,21 @@ npx wrangler pages deploy dist/client --project-name aquasense-iot --branch main
 > **`--branch`** define o ambiente no Cloudflare Pages: `main` publica em **produção** (`aquasense-iot.pages.dev`); qualquer outro nome cria um **preview** isolado (`<branch>.aquasense-iot.pages.dev`), útil para testar antes de ir ao ar.
 >
 > Na primeira execução o Wrangler pede login (`npx wrangler login`).
+
+### Modo demo público (`VITE_PUBLIC_DEMO`)
+
+A telemetria é **pessoal** — a versão publicada na internet (`aquasense-iot.pages.dev`) não deve
+expor os dados reais da piscina (nem permitir comandos reais) para qualquer visitante anônimo.
+
+Defina a variável de ambiente **`VITE_PUBLIC_DEMO=true`** no projeto do Cloudflare Pages
+(**Settings → Environment variables**, no ambiente de **Production**) para que a build publicada
+**nunca** se conecte ao broker MQTT real: ela roda só com a simulação local (banner "Modo
+simulação local"), e — como o cliente MQTT nunca é criado — comandos (bomba, dosagem, modo) também
+ficam bloqueados nessa instância.
+
+Sua instância **pessoal** (dev local com `npm run dev`, inclusive acessada por túnel — ver acima)
+não deve definir essa variável: assim ela continua recebendo a telemetria real do ESP32 e enviando
+comandos normalmente, exatamente como hoje.
 
 ## Equipe
 
