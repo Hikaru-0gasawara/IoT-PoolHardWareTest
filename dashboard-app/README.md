@@ -239,6 +239,15 @@ Sua instância **pessoal** (dev local com `npm run dev`, inclusive acessada por 
 não deve definir essa variável: assim ela continua recebendo a telemetria real do ESP32 e enviando
 comandos normalmente, exatamente como hoje.
 
+### Demonstração
+
+Aponte a câmera do celular para o QR abaixo para abrir a build pública (modo demo, dados
+simulados — ver seção anterior):
+
+![QR Code para a demonstração pública do AquaSense IoT](docs/assets/qr-demo-publico.png)
+
+`https://aquasense-iot.pages.dev`
+
 ## Equipe
 
 - **Grupo 1** (controle de aquecimento): Martim Roxo · Vitor Yoshida
