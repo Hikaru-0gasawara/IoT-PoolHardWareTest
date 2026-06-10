@@ -166,6 +166,7 @@ unsigned long fimDosagem         = 0;        // 0 = sem dosagem em andamento
 uint32_t      ciclo              = 0;
 bool          bombaLigada        = false;
 bool          primeiroCiclo      = true;
+uint32_t      g_falhasMqtt       = 0;        // tentativas de mqtt.connect() que falharam (telemetria real)
 
 // Leituras atuais.
 static float g_ph     = 7.4f;
@@ -189,11 +190,17 @@ char g_doseEmAndamento[8] = "";              // "" = null | "cloro" | "acido" | 
 // ============================================================================
 //  SIMULACAO DOS SENSORES (literais float — sem promocao a double)
 //  Em hardware real, troque estas funcoes pela leitura analogica calibrada.
+//
+//  Amplitudes calibradas para PERCORRER as 3 faixas de severidade (ideal /
+//  atencao / critico) usadas pelo dashboard (THRESHOLDS) e pelos LEDs do
+//  firmware (PH_MIN/MAX, COND_MIN/MAX). Com as amplitudes antigas (pH ±0.2,
+//  condutividade ±180) os valores nunca saiam da faixa ideal — nenhum LED
+//  acendia e nenhum alerta chegava a "critico" com o ESP32 conectado.
 // ============================================================================
-float lerPH()            { return 7.4f   + sinf(millis() / 30000.0f) * 0.2f;   }  // 7.2 – 7.6
-float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f;  }  // 640 – 760 mV
-float lerCondutividade() { return 1000.0f+ sinf(millis() / 40000.0f) * 180.0f; }  // 820 – 1180 uS/cm
-float lerTempPiscina()   { return 28.0f  + sinf(millis() / 60000.0f) * 2.0f;   }
+float lerPH()            { return 7.4f   + sinf(millis() / 30000.0f) * 0.5f;   }  // 6.9 – 7.9 (ideal 7.2–7.6 / critico <7.0 ou >7.8)
+float lerORP()           { return 700.0f + sinf(millis() / 25000.0f) * 60.0f;  }  // 640 – 760 mV (ideal 650–750)
+float lerCondutividade() { return 1050.0f+ sinf(millis() / 40000.0f) * 500.0f; }  // 550 – 1550 uS/cm (ideal 800–1500)
+float lerTempPiscina()   { return 30.0f  + sinf(millis() / 60000.0f) * 6.0f;   }  // 24 – 36 °C (ideal 27–35)
 float lerTempSolar()     { return 30.0f  + sinf(millis() / 45000.0f) * 9.0f;   }
 float lerUmidade()       { return 65.0f  + sinf(millis() / 50000.0f) * 10.0f;  }
 
@@ -402,16 +409,22 @@ static void publicarControleEstado() {
 }
 
 // Telemetria tecnica (60s).
+// "falhas_mqtt" e contador REAL (incrementado em gerenciarMQTT() a cada
+// reconexao que falha). Os campos "erros_dht"/"erros_ds" de versoes
+// anteriores foram removidos: este firmware nunca teve sensores DHT/DS18B20
+// (todas as leituras sao simuladas via sinf() — ver lerPH/lerORP/etc.), entao
+// aqueles contadores eram sempre 0 e nao correspondiam a hardware nenhum.
 static void publicarSaude() {
   if (!mqtt.connected()) return;
-  char payload[200];
+  char payload[160];
   long rssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
   snprintf(payload, sizeof(payload),
     "{\"tempo_ativo_s\":%lu,\"heap_livre_kb\":%lu,\"rssi_wifi_dbm\":%ld,"
-    "\"erros_dht\":0,\"erros_ds\":0,\"falhas_mqtt\":0}",
+    "\"falhas_mqtt\":%lu}",
     (unsigned long)(millis() / 1000UL),
     (unsigned long)(ESP.getFreeHeap() / 1024UL),
-    rssi);
+    rssi,
+    (unsigned long)g_falhasMqtt);
   logPublish(TOPIC_SIS_SAUDE, mqtt.publish(TOPIC_SIS_SAUDE, payload, true));
 }
 
@@ -731,6 +744,7 @@ void gerenciarMQTT() {
     publicarSaude();
     ultimaSaude = millis();
   } else {
+    g_falhasMqtt++;
     int rc = mqtt.state();
     Serial.print(F("falhou rc="));
     Serial.print(rc);
