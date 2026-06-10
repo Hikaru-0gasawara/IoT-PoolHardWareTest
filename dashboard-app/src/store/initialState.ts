@@ -20,9 +20,10 @@ export function buildInitial(): PoolState {
   // Migration one-shot: lista de alertas começa vazia. Em ~15s (3 ciclos a 5s)
   // os primeiros agregados aparecem conforme parâmetros saem da faixa.
   const initialAlerts: AggregatedAlert[] = [];
-  // Reconhecimentos persistidos são reaplicados pelo agregador conforme
-  // alertas são reabertos (id determinístico = `${parametro}:${severity}`).
-  void persisted.ackedAlerts;
+  // Reconhecimentos persistidos (persisted.ackedAlerts) são reaplicados em
+  // ingestFromMqtt() (poolStore.ts) quando um alerta com id determinístico
+  // (`${parametro}:${severity}`) reabre — não há nada a fazer aqui no boot,
+  // já que initialAlerts começa vazio.
 
   return {
     ph: last.ph,

@@ -89,10 +89,12 @@ export function processAggregatedAlertsWithStats(
       const shadow = next.find((a) => a.id === shadowId);
       const fora = (shadow?.ciclos_consecutivos_fora ?? 0) + 1;
       if (fora >= OPEN_AFTER_CYCLES) {
-        // abre alerta real
+        // abre alerta real — id determinístico (`${parametro}:${severity}`,
+        // sem timestamp) para que acks persistidos (localStorage) sejam
+        // reaplicáveis quando o mesmo alerta reabre após ser resolvido.
         const sev: "warn" | "crit" = lvl;
         const real: AggregatedAlert = {
-          id: `${key}:${sev}:${now}`,
+          id: `${key}:${sev}`,
           parametro: key,
           severity: sev,
           severity_max: sev,
@@ -110,7 +112,9 @@ export function processAggregatedAlertsWithStats(
           faixa_ideal: { min: t.idealMin, max: t.idealMax },
           unidade: t.unit,
         };
-        next = next.filter((a) => a.id !== shadowId);
+        // remove o shadow e qualquer alerta resolvido retido (24h) com o
+        // mesmo id determinístico — evita duplicidade ao reabrir.
+        next = next.filter((a) => a.id !== shadowId && a.id !== real.id);
         next = [real, ...next];
         activeByParam.set(key, real);
         stats.opened += 1;
