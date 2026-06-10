@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "ask-sdk-core": "^2.14.0",
-    "mqtt": "^5.10.1"
+    "mqtt": "^5.15.1"
   }
 }
