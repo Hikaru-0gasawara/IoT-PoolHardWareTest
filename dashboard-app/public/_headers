@@ -1,0 +1,9 @@
+# Cabeçalhos de segurança aplicados pelo Cloudflare Pages a todas as rotas.
+# Copiado para dist/client/_headers no build (conteúdo de public/ é copiado
+# como está para a raiz do output pelo Vite). Referência:
+# https://developers.cloudflare.com/pages/configuration/headers/
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
