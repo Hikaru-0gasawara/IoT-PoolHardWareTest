@@ -251,6 +251,6 @@ simulados — ver seção anterior):
 ## Equipe
 
 - **Grupo 1** (controle de aquecimento): Martim Roxo · Vitor Yoshida
-- **Grupo 2** (qualidade da água): João Perestrelo · Hikaru Ogasawara · Roan Ribeiro Mariotto
+- **Grupo 2** (qualidade da água): João Victor Perestrelo · Hikaru Ogasawara · Roan Ribeiro Mariotto
 - **Professor:** Marcel Stefan Wagner, PhD
 - **Empresa parceira:** Invivio Tecnologia Ltda.

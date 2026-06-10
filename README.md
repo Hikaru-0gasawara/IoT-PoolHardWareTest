@@ -11,7 +11,7 @@ o hardware, o protocolo MQTT e a lógica de controle ponta a ponta com o dashboa
 
 **IBMEC São Paulo / Invivio Tecnologia Ltda**
 Sistemas Embarcados — Prof. Marcel Stefan Wagner, PhD
-Grupo 1 (controle de aquecimento) · Grupo 2 (qualidade da água): João Perestrelo, Hikaru Ogasawara, Roan Ribeiro Mariotto
+Grupo 1 (controle de aquecimento) · Grupo 2 (qualidade da água): João Victor Perestrelo, Hikaru Ogasawara, Roan Ribeiro Mariotto
 
 > 📄 **[Relatório Final do Projeto](docs/Relatorio_Final_AquaSense_IoT.md)** — documento completo
 > com arquitetura, hardware, protocolo, dashboard, skill Alexa, segurança e conclusões.
