@@ -13,6 +13,9 @@ o hardware, o protocolo MQTT e a lógica de controle ponta a ponta com o dashboa
 Sistemas Embarcados — Prof. Marcel Stefan Wagner, PhD
 Grupo 1 (controle de aquecimento) · Grupo 2 (qualidade da água): João Perestrelo, Hikaru, Roan
 
+> 📄 **[Relatório Final do Projeto](docs/Relatorio_Final_AquaSense_IoT.md)** — documento completo
+> com arquitetura, hardware, protocolo, dashboard, skill Alexa, segurança e conclusões.
+
 ---
 
 ## Sumário
@@ -342,8 +345,7 @@ dashboard/
   index.html                               ← dashboard single-file (sem build, namespace antigo)
   README.md                                ← instruções e aviso de namespace
 docs/
-  Glossario.md                             ← glossário EN→PT de campos MQTT (fonte única)
-  README.md
+  Relatorio_Final_AquaSense_IoT.md         ← relatório final do projeto (arquitetura, resultados)
 alexa/                                     ← skill Alexa pt-BR (consulta + comandos via MQTT)
   skill-package/                           ← manifesto + modelo de interação
   lambda/                                  ← handler Node.js (ask-sdk-core) + ponte MQTT
