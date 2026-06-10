@@ -60,7 +60,7 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
     expect(parsed).toMatchObject({ parametro: "cloro", origem: "manual" });
     expect(typeof parsed.comando_id).toBe("string");
     expect(parsed.comando_id.length).toBeGreaterThan(0);
-    expect(opts).toMatchObject({ qos: 0, retain: false });
+    expect(opts).toMatchObject({ qos: 1, retain: false });
   });
 
   it("publishDosingCommand gera um comando_id único por chamada", async () => {
@@ -97,7 +97,7 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
     expect(JSON.parse(publishMock.mock.calls[0][1] as string).parametro).toBe("base");
   });
 
-  it("throttle de 1s: 2 doses idênticas resultam em UM publish", async () => {
+  it("throttle de 1s: a 2ª dose idêntica é rejeitada e só UM publish ocorre", async () => {
     const { result } = renderHook(() => ({ cmds: useMqttCommands(), state: useMqtt() }), {
       wrapper,
     });
@@ -106,7 +106,9 @@ describe("useMqttCommands — comandos de dosagem (firmware v3.0)", () => {
 
     await act(async () => {
       await result.current.cmds.publishDosingCommand("cloro");
-      await result.current.cmds.publishDosingCommand("cloro");
+    });
+    await act(async () => {
+      await expect(result.current.cmds.publishDosingCommand("cloro")).rejects.toThrow(/aguarde/i);
     });
 
     expect(publishMock).toHaveBeenCalledTimes(1);

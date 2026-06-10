@@ -110,17 +110,20 @@ Adicione em `skill.json → manifest.apis.custom.endpoint` o ARN da sua função
 
 ## Configuração do broker
 
-Por padrão a skill usa o **broker público** (`wss://broker.hivemq.com:8884/mqtt`) e o namespace
-`aquasense-ibmec-pt` — casa com o firmware em `USAR_TLS 0` e com o dashboard.
+Por padrão a skill usa o **mesmo cluster HiveMQ Cloud (TLS)** do firmware com `USAR_TLS 1`
+(o padrão de `AquaSense.ino`) e o namespace `aquasense-ibmec-pt` — casa com o firmware e o
+dashboard sem configuração adicional.
 
-Para um **HiveMQ Cloud** (TLS), defina variáveis de ambiente na Lambda
-(`config.js` as lê automaticamente):
+Para apontar para **outro broker** (ex.: o broker público `broker.hivemq.com`, usado quando o
+firmware está em `USAR_TLS 0`, ou um cluster HiveMQ Cloud próprio), defina variáveis de ambiente
+na Lambda (`config.js` as lê automaticamente):
 
 | Variável | Exemplo | Quando usar |
 |---|---|---|
-| `MQTT_URL` | `wss://SEU_CLUSTER.s1.eu.hivemq.cloud:8884/mqtt` | Cluster HiveMQ Cloud |
-| `MQTT_USERNAME` | `ProjetoIoT` | Cluster com autenticação |
-| `MQTT_PASSWORD` | `••••••••` | Cluster com autenticação |
+| `MQTT_URL` | `wss://SEU_CLUSTER.s1.eu.hivemq.cloud:8884/mqtt` | Outro cluster HiveMQ Cloud |
+| `MQTT_URL` | `wss://broker.hivemq.com:8884/mqtt` | Broker público (firmware em `USAR_TLS 0`) |
+| `MQTT_USERNAME` | `usuario` | Cluster com autenticação (vazio/omitido no broker público) |
+| `MQTT_PASSWORD` | `••••••••` | Cluster com autenticação (vazio/omitido no broker público) |
 | `MQTT_NAMESPACE` | `aquasense-ibmec-pt` | Se mudar o namespace do firmware |
 | `MQTT_TIMEOUT_MS` | `4500` | Ajuste fino (dentro dos 8 s da Alexa) |
 
@@ -133,6 +136,9 @@ Para um **HiveMQ Cloud** (TLS), defina variáveis de ambiente na Lambda
 
 - **Dosagem** exige **confirmação por voz** ("Você quer mesmo iniciar a dosagem de cloro?") antes
   de publicar o comando — definido no modelo de diálogo (`confirmationRequired`).
+- **Mudança de modo** (`DefinirModoIntent`) também exige **confirmação por voz** ("Você quer mesmo
+  mudar o modo para parada?") — inclui o caso crítico de **parada de emergência**, evitando que um
+  trecho de fala mal interpretado pelo ASR pare o sistema sem intenção do usuário.
 - O firmware ainda aplica suas próprias travas: se estiver em **parada de emergência** ou já
   houver uma **dose em andamento**, o comando é **bloqueado** e o evento sai em `dosagem/evento`.
 - A skill não recebe o resultado de forma síncrona; ela confirma o **envio** e orienta a

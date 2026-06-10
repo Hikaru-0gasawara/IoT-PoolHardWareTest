@@ -1,4 +1,4 @@
-// Geração client-side do "Resumo diário — Cloro e Alcalinidade".
+// Geração client-side do "Resumo diário — pH, Cloro e Alcalinidade".
 //
 // Roda no browser (clique do usuário), lendo o estado ao vivo do poolStore.
 // Desenha tudo com primitivas do jsPDF (sem html2canvas) para um PDF leve e
@@ -20,6 +20,7 @@ const INK: [number, number, number] = [24, 32, 40];
 const MUTED: [number, number, number] = [110, 122, 134];
 const LINE: [number, number, number] = [222, 228, 233];
 const ACCENT: [number, number, number] = [14, 116, 144];
+const PH_COLOR: [number, number, number] = [109, 90, 213];
 const OK: [number, number, number] = [34, 160, 110];
 const WARN: [number, number, number] = [205, 145, 30];
 const CRIT: [number, number, number] = [206, 65, 60];
@@ -31,6 +32,22 @@ function statusRGB(s: StatusLevel): [number, number, number] {
 function fmt(key: ParameterKey, v: number): string {
   const d = key === "ph" ? 2 : key === "cloro" ? 1 : 0;
   return v.toFixed(d);
+}
+
+// Valor com unidade — pH não tem unidade (ex.: "7.40" vs "1.5 ppm").
+function valueText(key: ParameterKey, value: number, unit: string): string {
+  const v = fmt(key, value);
+  return unit ? `${v} ${unit}` : v;
+}
+
+// Faixa ideal com unidade opcional (ex.: "7.2–7.6" vs "80–120 ppm").
+function rangeText(idealMin: number, idealMax: number, unit: string): string {
+  return unit ? `${idealMin}–${idealMax} ${unit}` : `${idealMin}–${idealMax}`;
+}
+
+// Rótulo do gráfico — evita "pH ()" quando a unidade é vazia.
+function chartLabel(label: string, unit: string): string {
+  return unit ? `${label} (${unit})` : label;
 }
 
 function relTime(t: number): string {
@@ -126,7 +143,7 @@ export function exportDailyReport() {
   doc.text("AquaSense IoT", M, 14);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text("Resumo diário — Cloro e Alcalinidade", M, 22);
+  doc.text("Resumo diário — pH, Cloro e Alcalinidade", M, 22);
   const now = new Date();
   doc.setFontSize(9);
   doc.text(now.toLocaleString("pt-BR"), W - M, 22, { align: "right" });
@@ -150,36 +167,37 @@ export function exportDailyReport() {
   yPos = 52;
 
   // ── Cartões de resumo ──────────────────────────────────────
-  const cardW = (W - M * 2 - 8) / 2;
+  const cardGap = 6;
+  const cardW = (W - M * 2 - cardGap * 2) / 3;
   const cardH = 30;
-  const params: ParameterKey[] = ["cloro", "alcalinidade"];
+  const params: ParameterKey[] = ["ph", "cloro", "alcalinidade"];
   params.forEach((key, i) => {
     const t = THRESHOLDS[key];
     const value = s[key] as number;
     const status = statusFor(key, value);
     const rgb = statusRGB(status);
-    const cx = M + i * (cardW + 8);
+    const cx = M + i * (cardW + cardGap);
     doc.setDrawColor(...LINE);
     doc.setLineWidth(0.4);
     doc.roundedRect(cx, yPos, cardW, cardH, 2, 2);
     doc.setTextColor(...MUTED);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(7.5);
     doc.text(t.label.toUpperCase(), cx + 5, yPos + 7);
     doc.setTextColor(...INK);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(`${fmt(key, value)} ${t.unit}`, cx + 5, yPos + 18);
+    doc.text(valueText(key, value, t.unit), cx + 5, yPos + 18);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(`Faixa ideal ${t.idealMin}–${t.idealMax} ${t.unit}`, cx + 5, yPos + 25);
+    doc.text(`Faixa ideal ${rangeText(t.idealMin, t.idealMax, t.unit)}`, cx + 5, yPos + 25);
     // pílula de status
     doc.setFillColor(...rgb);
-    doc.roundedRect(cx + cardW - 38, yPos + 5, 33, 6, 3, 3, "F");
+    doc.roundedRect(cx + cardW - 29, yPos + 5, 24, 6, 3, 3, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(7.5);
-    doc.text(statusLabel(status), cx + cardW - 21.5, yPos + 9, { align: "center" });
+    doc.setFontSize(7);
+    doc.text(statusLabel(status), cx + cardW - 17, yPos + 9, { align: "center" });
   });
   yPos += cardH + 12;
 
@@ -187,21 +205,18 @@ export function exportDailyReport() {
   doc.setTextColor(...INK);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text("Alertas ativos — Cloro e Alcalinidade", M, yPos);
+  doc.text("Alertas ativos — pH, Cloro e Alcalinidade", M, yPos);
   yPos += 7;
 
   const ativos = s.alerts.filter(
-    (a) =>
-      !a.id.startsWith("shadow:") &&
-      a.status === "ativo" &&
-      (a.parametro === "cloro" || a.parametro === "alcalinidade"),
+    (a) => !a.id.startsWith("shadow:") && a.status === "ativo" && params.includes(a.parametro),
   );
 
   if (ativos.length === 0) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.setTextColor(...OK);
-    doc.text("● Nenhum alerta ativo — cloro e alcalinidade dentro das faixas ideais.", M, yPos);
+    doc.text("● Nenhum alerta ativo — pH, cloro e alcalinidade dentro das faixas ideais.", M, yPos);
     yPos += 10;
   } else {
     // Cabeçalho da tabela
@@ -244,7 +259,7 @@ export function exportDailyReport() {
       // valor atual / faixa ideal
       doc.setTextColor(...MUTED);
       doc.text(
-        `${fmt(a.parametro, a.valor_atual)} / ${t.idealMin}–${t.idealMax} ${t.unit}`,
+        `${fmt(a.parametro, a.valor_atual)} / ${rangeText(t.idealMin, t.idealMax, t.unit)}`,
         cols.val,
         yPos,
       );
@@ -262,21 +277,29 @@ export function exportDailyReport() {
   yPos += 6;
 
   const hist: SensorPoint[] = s.history.slice(-96);
-  const chartW = (W - M * 2 - 8) / 2;
+  const chartGap = 6;
+  const chartW = (W - M * 2 - chartGap * 2) / 3;
   const chartH = 34;
   params.forEach((key, i) => {
     const t = THRESHOLDS[key];
-    const cx = M + i * (chartW + 8);
+    const cx = M + i * (chartW + chartGap);
     doc.setTextColor(...MUTED);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.text(`${t.label} (${t.unit})`, cx, yPos);
+    doc.text(chartLabel(t.label, t.unit), cx, yPos);
+    // pH varia numa faixa estreita (0–14); usa uma banda em torno do alerta
+    // para não esmagar a linha no topo do gráfico, ao contrário de
+    // cloro/alcalinidade onde a faixa do sensor já é proporcional ao ideal.
+    const band =
+      key === "ph"
+        ? { min: t.idealMin, max: t.idealMax, lo: t.warnMin - 0.3, hi: t.warnMax + 0.3 }
+        : { min: t.idealMin, max: t.idealMax, lo: t.rangeMin, hi: t.idealMax * 1.2 };
     drawChart(
       doc,
       hist.map((p) => p[key] as number),
       { x: cx, y: yPos + 2, w: chartW, h: chartH },
-      key === "cloro" ? ACCENT : [120, 90, 180],
-      { min: t.idealMin, max: t.idealMax, lo: t.rangeMin, hi: t.idealMax * 1.2 },
+      key === "ph" ? PH_COLOR : key === "cloro" ? ACCENT : [120, 90, 180],
+      band,
     );
   });
   yPos += chartH + 14;
@@ -325,5 +348,5 @@ export function exportDailyReport() {
   // Nome do arquivo baseado na data/hora da geração: YYYY-MM-DD_HH-MM-SS.
   const pad = (n: number) => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-  doc.save(`aquasense-resumo-cloro-alcalinidade_${stamp}.pdf`);
+  doc.save(`aquasense-resumo-ph-cloro-alcalinidade_${stamp}.pdf`);
 }

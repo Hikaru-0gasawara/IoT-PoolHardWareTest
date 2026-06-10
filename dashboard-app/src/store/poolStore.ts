@@ -25,7 +25,7 @@ import { aggregateStatus } from "@/lib/thresholds";
 import { SIM, POOL } from "@/lib/constants";
 import { processAggregatedAlertsWithStats, type ParamReading } from "@/store/alertEngine";
 import { detectChlorineEvent } from "@/store/cloroEvents";
-import { saveSettings } from "@/store/settings";
+import { loadSettings, saveSettings } from "@/store/settings";
 import { buildInitial } from "@/store/initialState";
 import { runSimulationTick } from "@/store/simulationEngine";
 
@@ -177,7 +177,21 @@ export const usePoolStore = create<Store>((set, get) => ({
     ];
     const aggReadings = aggReadingsRaw.filter((r) => !isSensorError(r.value));
     const aggOut = processAggregatedAlertsWithStats(s.alerts, aggReadings, now);
-    const nextAlerts = aggOut.alerts;
+    let nextAlerts = aggOut.alerts;
+
+    // Reaplicação de acks persistidos: se um alerta acabou de abrir (ou
+    // reabrir) com um id que o usuário já reconheceu antes — ex.: o mesmo
+    // parâmetro saiu da faixa de novo após a página ter sido recarregada —
+    // marca ack_em automaticamente. Os ids são determinísticos
+    // (`${parametro}:${severity}`), então o ack persistido continua válido.
+    if (aggOut.stats.opened > 0) {
+      const acked = new Set(loadSettings().ackedAlerts ?? []);
+      if (acked.size > 0) {
+        nextAlerts = nextAlerts.map((a) =>
+          a.status === "ativo" && a.ack_em == null && acked.has(a.id) ? { ...a, ack_em: now } : a,
+        );
+      }
+    }
 
     // Sparkline (5s) — ignora pontos com erro de sensor
     const validPoint =

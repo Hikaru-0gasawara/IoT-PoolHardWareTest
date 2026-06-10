@@ -292,7 +292,12 @@ const DosarHandler = {
   },
 };
 
-// --- Comando: definir modo --------------------------------------------------
+// --- Comando: definir modo (confirmação obrigatória no modelo de diálogo) ---
+// "parada" = parada de emergência: a confirmação evita que um trecho de fala
+// mal interpretado pelo ASR (ex.: "modo... parada" ouvido por engano) pare o
+// sistema de dosagem química sem intenção do usuário. Aplica-se também a
+// "automático"/"manual" porque o modelo de diálogo da Alexa não permite
+// confirmação condicional por valor de slot — mesmo padrão de DosarIntent.
 const DefinirModoHandler = {
   canHandle(h) {
     return (
@@ -301,6 +306,19 @@ const DefinirModoHandler = {
     );
   },
   async handle(h) {
+    const status = Alexa.getDialogState(h.requestEnvelope);
+    const intent = h.requestEnvelope.request.intent;
+
+    // Deixa o diálogo (elicitação + confirmação) ser conduzido pela Alexa.
+    if (status !== "COMPLETED") {
+      return h.responseBuilder.addDelegateDirective(intent).getResponse();
+    }
+
+    // Usuário negou a confirmação.
+    if (intent.confirmationStatus === "DENIED") {
+      return h.responseBuilder.speak("Tudo bem, mantendo o modo atual.").getResponse();
+    }
+
     const modo = resolverSlot(h, "modo"); // "automatico" | "manual" | "parada"
     if (!modo) {
       return h.responseBuilder

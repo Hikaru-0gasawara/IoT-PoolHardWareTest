@@ -170,7 +170,8 @@
         },
         {
           "name": "DefinirModoIntent",
-          "confirmationRequired": false,
+          "confirmationRequired": true,
+          "prompts": { "confirmation": "Confirm.Intent.DefinirModoIntent" },
           "slots": [
             {
               "name": "modo",
@@ -188,6 +189,12 @@
         "id": "Confirm.Intent.DosarIntent",
         "variations": [
           { "type": "PlainText", "value": "Você quer mesmo iniciar a dosagem de {quimico}?" }
+        ]
+      },
+      {
+        "id": "Confirm.Intent.DefinirModoIntent",
+        "variations": [
+          { "type": "PlainText", "value": "Você quer mesmo mudar o modo para {modo}?" }
         ]
       },
       {

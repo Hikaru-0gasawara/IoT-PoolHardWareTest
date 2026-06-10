@@ -50,6 +50,15 @@ export function SettingsPanel() {
           </div>
         )}
         <Row k="Última mensagem" v={lastMsgLabel} />
+        <Row
+          k="Firmware (LWT)"
+          v={conn.firmwareOnline == null ? "—" : conn.firmwareOnline ? "online" : "offline"}
+          valColor={
+            conn.firmwareOnline == null
+              ? undefined
+              : toneToColor(conn.firmwareOnline ? "ok" : "crit")
+          }
+        />
         <Row k="Broker" v="broker.hivemq.com" />
         <Row k="Namespace" v={`${MQTT_NAMESPACE}/`} />
         <Row k="Ciclo de publicação" v="5 s" />
