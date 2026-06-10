@@ -115,6 +115,10 @@ export interface MqttContextValue {
   providerMountedAt: number;
   // Respostas de dosagem recebidas em alexa/resposta (FIFO, mais recente em [0]).
   dosingResponses: DosingResponse[];
+  // Último estado do LWT do firmware em sistema/status ("online" ao conectar,
+  // "offline" publicado pelo broker se o ESP32 cair sem se despedir, retain).
+  // null = nenhuma mensagem recebida ainda nesta sessão.
+  firmwareOnline: boolean | null;
   // Contadores de falha por sensor (leitura = valor de erro), acumulados na sessão.
   sensorFailures: SensorFailureCounts;
   // Publica um comando de dosagem manual. Throttle de 1s; rejeita quando

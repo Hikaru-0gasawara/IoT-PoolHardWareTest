@@ -86,6 +86,7 @@ export function useConnection(): {
   totalGaps: number;
   messagesReceivedCount: number;
   providerMountedAt: number;
+  firmwareOnline: boolean | null;
 } {
   const m = useMqtt();
   return {
@@ -97,6 +98,7 @@ export function useConnection(): {
     totalGaps: m.totalGaps,
     messagesReceivedCount: m.messagesReceivedCount,
     providerMountedAt: m.providerMountedAt,
+    firmwareOnline: m.firmwareOnline,
   };
 }
 

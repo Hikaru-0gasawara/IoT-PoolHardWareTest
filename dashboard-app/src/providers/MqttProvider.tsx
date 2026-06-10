@@ -52,15 +52,20 @@ import {
   resetBaseline,
 } from "@/lib/cycleGaps";
 
-// Broker — HiveMQ Cloud (TLS/WSS 8884) por padrão, mesmo cluster do firmware
-// (USAR_TLS 1). Configurável por env (VITE_MQTT_URL / _USERNAME / _PASSWORD)
-// para apontar para outro broker (ex.: wss://broker.hivemq.com:8884 público)
-// sem recompilar.
+// Broker — HiveMQ Cloud (TLS/WSS 8884), mesmo cluster do firmware (USAR_TLS 1).
+// Configurável (e OBRIGATÓRIO) por env: VITE_MQTT_URL / _USERNAME / _PASSWORD.
+//
+// IMPORTANTE: NÃO definir valores-padrão (fallback) aqui. Esta env é embutida
+// no bundle JS público — qualquer visitante do dashboard implantado consegue
+// abrir o "view-source" e ler credenciais hardcoded, ganhando acesso de
+// publish ao broker real (dosagem química, modo da bomba, E-Stop). Configure
+// `dashboard-app/.env.local` (gitignored, nunca commitado) com as credenciais
+// do SEU cluster — ver `.env.example`. Sem essas variáveis o provider roda em
+// simulação local (mesmo modo do demo público), nunca com credenciais embutidas.
 const ENV = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-const MQTT_URL =
-  ENV.VITE_MQTT_URL ?? "wss://5b98faa6560246759f3065ffc720f8b9.s1.eu.hivemq.cloud:8884/mqtt";
-const MQTT_USERNAME = ENV.VITE_MQTT_USERNAME ?? "ProjetoIoT";
-const MQTT_PASSWORD = ENV.VITE_MQTT_PASSWORD ?? "IoT12345678";
+const MQTT_URL = ENV.VITE_MQTT_URL;
+const MQTT_USERNAME = ENV.VITE_MQTT_USERNAME;
+const MQTT_PASSWORD = ENV.VITE_MQTT_PASSWORD;
 
 // Modo demo público — para builds expostas na internet (deploy), sem dono
 // presente para acompanhar quem acessa. Quando VITE_PUBLIC_DEMO=true, o
@@ -91,6 +96,7 @@ const MqttContext = createContext<MqttContextValue>({
   messagesReceivedCount: 0,
   providerMountedAt: 0,
   dosingResponses: [],
+  firmwareOnline: null,
   sensorFailures: { ph: 0, cloro: 0, alcalinidade: 0, piscina: 0, coletor: 0 },
   publishDosingCommand: noopAsync,
   publishControlMode: noopAsync,
@@ -122,8 +128,13 @@ const BombaEnum = z.union([z.enum(["ON", "OFF", "LIGADA", "DESLIGADA"]), z.boole
 export const SnapshotSchema = z
   .object({
     ph: numInRange(0, 14),
-    cloro: numInRange(0, 10),
-    alcalinidade: numInRange(0, 200),
+    // Limites alinhados aos clamps de calcularCloroLivre()/calcularAlcalinidade()
+    // no firmware (AquaSense.ino): 0.05–15.0 ppm e 0–500 ppm. Faixas menores
+    // (0–10 / 0–200) rejeitavam o payload INTEIRO sempre que o firmware
+    // publicasse um valor derivado fora do "normal" — exatamente o cenário
+    // (alerta crítico) que a UI mais precisa exibir.
+    cloro: numInRange(0, 15),
+    alcalinidade: numInRange(0, 500),
     // Opcional: a UI consome cloro/alcalinidade derivados; um firmware que não
     // publique condutividade não deve ter o snapshot inteiro rejeitado.
     condutividade_us_cm: numInRange(0, 5000).optional(),
@@ -254,6 +265,9 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   const [gapState, setGapState] = useState<GapDetectorState>(() => createGapDetector());
   const [messagesReceivedCount, setMessagesReceivedCount] = useState(0);
   const [dosingResponses, setDosingResponses] = useState<DosingResponse[]>([]);
+  // Último estado do LWT do firmware em sistema/status ("online"/"offline",
+  // retain). null = nenhuma mensagem recebida ainda nesta sessão.
+  const [firmwareOnline, setFirmwareOnline] = useState<boolean | null>(null);
   const [sensorFailures, setSensorFailures] = useState<SensorFailureCounts>({
     ph: 0,
     cloro: 0,
@@ -269,7 +283,13 @@ export function MqttProvider({ children }: { children: ReactNode }) {
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (PUBLIC_DEMO_MODE) {
+    if (PUBLIC_DEMO_MODE || !MQTT_URL) {
+      if (!PUBLIC_DEMO_MODE) {
+        console.warn(
+          "[MQTT] VITE_MQTT_URL não configurado — rodando em simulação local. " +
+            "Veja dashboard-app/.env.example para configurar seu broker.",
+        );
+      }
       sourceRef.current = "fallback";
       setSource("fallback");
       setStatus("disconnected");
@@ -304,6 +324,15 @@ export function MqttProvider({ children }: { children: ReactNode }) {
         const next = [{ t: now, topic, payload }, ...prev];
         return next.length > LOG_MAX ? next.slice(0, LOG_MAX) : next;
       });
+
+      // sistema/status — LWT do firmware (retain): "online" ao conectar,
+      // "offline" publicado pelo BROKER se o ESP32 cair sem se despedir.
+      // Sinal mais rápido que o watchdog de 15s (FALLBACK_AFTER_MS), que só
+      // detecta a ausência de novos snapshots em .../dados.
+      if (topic === MQTT_TOPICS.SISTEMA_STATUS) {
+        setFirmwareOnline(payload === "online");
+        return;
+      }
 
       // dosagem/evento — feedback assíncrono de um comando de dosagem.
       if (topic === MQTT_TOPICS.DOSAGEM_EVENTO) {
@@ -405,11 +434,18 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       const now = Date.now();
       const last = lastPublishRef.current[throttleKey] ?? 0;
       if (now - last < COMMAND_THROTTLE_MS) {
-        return Promise.resolve();
+        // Antes resolvia silenciosamente (Promise.resolve()), e a UI exibia
+        // "Comando enviado" mesmo sem publicar nada — falso positivo. Agora
+        // rejeita com um motivo claro; quem chama já trata catch() e mostra
+        // a mensagem de erro ao usuário.
+        return Promise.reject(new Error("Aguarde um instante antes de repetir o comando"));
       }
       lastPublishRef.current[throttleKey] = now;
       return new Promise<void>((resolve, reject) => {
-        client.publish(topic, JSON.stringify(payloadObj), { qos: 0, retain: false }, (err) =>
+        // QoS 1 (at-least-once): comandos críticos (dosagem, modo, E-Stop) não
+        // podem ser silenciosamente descartados em conexões instáveis — mesmo
+        // nível usado pela skill Alexa (alexa/lambda/mqtt-bridge.js).
+        client.publish(topic, JSON.stringify(payloadObj), { qos: 1, retain: false }, (err) =>
           err ? reject(err) : resolve(),
         );
       });
@@ -454,6 +490,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       messagesReceivedCount,
       providerMountedAt,
       dosingResponses,
+      firmwareOnline,
       sensorFailures,
       publishDosingCommand,
       publishControlMode,
@@ -470,6 +507,7 @@ export function MqttProvider({ children }: { children: ReactNode }) {
       messagesReceivedCount,
       providerMountedAt,
       dosingResponses,
+      firmwareOnline,
       sensorFailures,
       publishDosingCommand,
       publishControlMode,
