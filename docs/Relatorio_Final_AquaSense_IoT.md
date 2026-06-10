@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Instituição** | IBMEC São Paulo — Engenharia, Sistemas Embarcados |
-| **Grupo 2 — Qualidade da Água e Dashboard** | João Perestrelo · Hikaru · Roan |
+| **Grupo 2 — Qualidade da Água e Dashboard** | João Perestrelo · Hikaru Ogasawara · Roan Ribeiro Mariotto |
 | **Grupo 1 — Controle de Aquecimento Solar** | Martim Roxo · Vitor Yoshida |
 | **Orientação** | Prof. Marcel Stefan Wagner, PhD |
 | **Parceria** | Invivio Tecnologia Ltda. |
